@@ -19,5 +19,8 @@ spring:
 # Security
 security:
   token:
-    secret: ${JWT_SECRET}
+    secret: ${JWT_SECRET:cMxeHD4vmJOBn7Ohd5OjE0qAFKXd40gDRjMzhrHpdS4JK6m1}
     expiration-time: 3600000
+
+server:
+  port: 8080
