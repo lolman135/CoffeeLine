@@ -1,58 +1,69 @@
 import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import { signIn, fetchMe } from '../src/api/auth';
 
 export type UserRole = 'customer' | 'cashier' | 'admin';
 
+interface UserProfile {
+  id: string;
+  name: string;
+  email: string;
+  phoneNumber?: string;
+  roles?: string;
+}
+
 interface AuthContextType {
   isAuthenticated: boolean;
-  userRole: UserRole | null;
-  user: { email: string } | null;
-  login: (role: UserRole, email?: string) => void;
+  token: string | null;
+  user: UserProfile | null;
+  login: (email: string, password: string) => Promise<void>;
   logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const TOKEN_KEY = 'authToken';
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
-  const [userRole, setUserRole] = useState<UserRole | null>(null);
-  const [user, setUser] = useState<{ email: string } | null>(null);
+  const [token, setToken] = useState<string | null>(null);
+  const [user, setUser] = useState<UserProfile | null>(null);
 
-  const AUTH_STORAGE_KEY = 'authState';
-
-  // При монтуванні завантажуємо роль з localStorage
+  // On mount, load token and try to fetch profile
   useEffect(() => {
-    const stored = localStorage.getItem(AUTH_STORAGE_KEY);
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        if (parsed.role) {
-          setIsAuthenticated(true);
-          setUserRole(parsed.role);
-          setUser(parsed.user || null);
-        }
-      } catch (error) {
-        console.error('Error loading auth state:', error);
-      }
+    const saved = localStorage.getItem(TOKEN_KEY);
+    if (saved) {
+      setToken(saved);
+      setIsAuthenticated(true);
+      fetchMe<UserProfile>()
+        .then(setUser)
+        .catch(() => {
+          // Token invalid, clear it
+          localStorage.removeItem(TOKEN_KEY);
+          setToken(null);
+          setIsAuthenticated(false);
+          setUser(null);
+        });
     }
   }, []);
 
-  const login = (role: UserRole, email?: string) => {
+  const login = async (email: string, password: string) => {
+    const t = await signIn({ email, password });
+    localStorage.setItem(TOKEN_KEY, t);
+    setToken(t);
     setIsAuthenticated(true);
-    setUserRole(role);
-    const userData = email ? { email } : null;
-    setUser(userData);
-    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ role, user: userData }));
+    const profile = await fetchMe<UserProfile>();
+    setUser(profile);
   };
 
   const logout = () => {
+    localStorage.removeItem(TOKEN_KEY);
+    setToken(null);
     setIsAuthenticated(false);
-    setUserRole(null);
     setUser(null);
-    localStorage.removeItem(AUTH_STORAGE_KEY);
   };
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, userRole, user, login, logout }}>
+    <AuthContext.Provider value={{ isAuthenticated, token, user, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

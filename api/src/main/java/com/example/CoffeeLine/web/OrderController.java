@@ -19,7 +19,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
@@ -68,7 +67,6 @@ public class OrderController {
             )
     })
     @GetMapping
-    @PreAuthorize("hasRole('CASHIER')")
     public ResponseEntity<Object> getAllOrders(
             @RequestParam(value = "status", required = false) OrderStatus orderStatus) {
         return ResponseEntity.ok()
@@ -278,7 +276,6 @@ public class OrderController {
             )
     })
     @PutMapping
-    @PreAuthorize("hasRole('CASHIER')")
     public ResponseEntity<Object> updateOrderStatus(
             @Valid @RequestBody UpdateOrderStatusRequestDto updateOrderStatusRequestDto) {
         return ResponseEntity.ok()
@@ -311,7 +308,6 @@ public class OrderController {
             )
     })
     @DeleteMapping("/{orderId}")
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Object> deleteOrder(@PathVariable UUID orderId) {
         orderService.deleteOrderById(orderId);
         return ResponseEntity.noContent().build();

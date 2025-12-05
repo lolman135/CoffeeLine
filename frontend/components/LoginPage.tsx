@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth, UserRole } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/AuthContext';
 import svgPaths from "../imports/svg-vlkv9314um";
 
 function CoffeeLogo() {
@@ -77,37 +77,20 @@ function LoginForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    
-    // Hardcoded credentials
-    const credentials = {
-      'user@coffee.com': { password: '1', role: 'customer' as UserRole },
-      'cashier@coffee.com': { password: '1', role: 'cashier' as UserRole },
-      'admin@coffee.com': { password: '1', role: 'admin' as UserRole },
-    };
-
-    // Перевірка credentials
-    const userCredential = credentials[email as keyof typeof credentials];
-    
-    if (!userCredential || userCredential.password !== password) {
-      setError('Невірний email або пароль');
-      return;
-    }
-
-    // Логін успішний
-    console.log('Login:', { email, password, role: userCredential.role });
-    login(userCredential.role, email);
-    
-    // Переходимо на відповідну сторінку залежно від ролі
-    if (userCredential.role === 'cashier') {
-      navigate('/cashier');
-    } else if (userCredential.role === 'admin') {
-      navigate('/admin');
-    } else {
+    setLoading(true);
+    try {
+      await login(email, password);
+      // Navigate to catalog after login; optionally branch by roles using context.user?.roles
       navigate('/catalog');
+    } catch (err: any) {
+      setError(err?.message || 'Помилка авторизації');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -157,9 +140,10 @@ function LoginForm() {
       {/* Submit Button */}
       <button 
         onClick={handleSubmit}
-        className="w-full bg-gradient-to-b from-[#ff8c00] h-[48px] rounded-[8px] shadow-[0px_4px_6px_-4px_rgba(255,140,0,0.2),0px_10px_15px_-3px_rgba(255,140,0,0.2)] to-[#ffa500] cursor-pointer hover:from-[#ff9500] hover:to-[#ffb000] transition-colors mb-6 flex items-center justify-center"
+        disabled={loading}
+        className={`w-full ${loading ? 'opacity-70 cursor-not-allowed' : ''} bg-gradient-to-b from-[#ff8c00] h-[48px] rounded-[8px] shadow-[0px_4px_6px_-4px_rgba(255,140,0,0.2),0px_10px_15px_-3px_rgba(255,140,0,0.2)] to-[#ffa500] cursor-pointer hover:from-[#ff9500] hover:to-[#ffb000] transition-colors mb-6 flex items-center justify-center`}
       >
-        <p className="font-['Inter:Semi_Bold',sans-serif] font-semibold text-[16px] text-center text-white">Авторизуватися</p>
+        <p className="font-['Inter:Semi_Bold',sans-serif] font-semibold text-[16px] text-center text-white">{loading ? 'Вхід...' : 'Авторизуватися'}</p>
       </button>
 
       {/* Register Link */}

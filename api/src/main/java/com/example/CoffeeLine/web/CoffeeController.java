@@ -18,7 +18,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
@@ -155,7 +154,6 @@ public class CoffeeController {
             )
     })
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Object> createCoffee(@Valid @RequestBody CoffeeRequestDto coffeeRequestDto) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -207,7 +205,6 @@ public class CoffeeController {
             )
     })
     @PutMapping
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Object> updateCoffee(@Valid @RequestBody CoffeeUpdateRequestDto coffeeUpdateRequestDto) {
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_JSON)
@@ -239,7 +236,6 @@ public class CoffeeController {
             ),
     })
     @DeleteMapping("/{coffeeId}")
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Object> deleteCoffeeById(@PathVariable UUID coffeeId) {
         coffeeService.deleteCoffeeById(coffeeId);
         return ResponseEntity.noContent().build();

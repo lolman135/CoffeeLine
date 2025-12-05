@@ -74,7 +74,6 @@ function RegisterForm() {
   const navigate = useNavigate();
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
-  const [address, setAddress] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -82,7 +81,7 @@ function RegisterForm() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     // Тут буде логіка реєстрації
-    console.log('Register:', { fullName, phone, address, email, password, confirmPassword });
+    console.log('Register:', { fullName, phone, email, password, confirmPassword });
     // Переходимо на каталог
     navigate('/catalog');
   };
@@ -116,22 +115,6 @@ function RegisterForm() {
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
             placeholder="+380501234567"
-            className="w-full h-full px-4 bg-transparent font-['Inter:Regular',sans-serif] font-normal text-[16px] text-[#333333] placeholder:text-[rgba(51,51,51,0.7)] outline-none border-none rounded-[8px]"
-          />
-        </div>
-      </div>
-
-      {/* Address Field */}
-      <div className="mb-6">
-        <label className="block font-['Inter:Medium',sans-serif] font-medium text-[#333333] text-[14px] mb-2">
-          Адреса
-        </label>
-        <div className="relative bg-neutral-100 h-[50px] rounded-[8px] border border-[#dddddd]">
-          <input
-            type="text"
-            value={address}
-            onChange={(e) => setAddress(e.target.value)}
-            placeholder="Ваша адреса"
             className="w-full h-full px-4 bg-transparent font-['Inter:Regular',sans-serif] font-normal text-[16px] text-[#333333] placeholder:text-[rgba(51,51,51,0.7)] outline-none border-none rounded-[8px]"
           />
         </div>

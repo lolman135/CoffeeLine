@@ -4,12 +4,12 @@ import Header from './Header';
 import Toast from './Toast';
 import DrinkCard from './DrinkCard';
 import { useDrinks } from '../contexts/DrinksContext';
-import imgEspresso from '../src/imgEspresso.jpg';
-import imgCappuccino from '../src/imgCappuccino.jpg';
-import imgLatte from '../src/imgLatte.jpeg';
-import imgAmericano from '../src/imgAmericano.jpg';
-import imgIcedLatte from '../src/imgIcedLatte.jpg';
-import imgRaf from '../src/imgRaf.jpg';
+import imgEspresso from '@/src/imgEspresso.jpg';
+import imgCappuccino from '@/src/imgCappuccino.jpg';
+import imgLatte from '@/src/imgLatte.jpeg';
+import imgAmericano from '@/src/imgAmericano.jpg';
+import imgIcedLatte from '@/src/imgIcedLatte.jpg';
+import imgRaf from '@/src/imgRaf.jpg';
 
 type Category = 'all' | 'hot' | 'cold';
 
@@ -25,20 +25,19 @@ const drinkImages: Record<string, string> = {
 
 export default function MainPage() {
   const navigate = useNavigate();
-  const { drinks } = useDrinks();
+  const { drinks, loading, error } = useDrinks();
   const [selectedCategory, setSelectedCategory] = useState<Category>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
   const filteredDrinks = drinks.filter(drink => {
-    // Фільтр по категорії
-    const categoryMatch = selectedCategory === 'all' || drink.category === selectedCategory;
-    
-    // Фільтр по пошуку
+    const hasCategory = (drink as any).category !== undefined;
+    const categoryValue = hasCategory ? (drink as any).category : undefined;
+    const categoryMatch = selectedCategory === 'all' || (hasCategory && categoryValue === selectedCategory);
+
     const searchLower = searchQuery.toLowerCase();
     const searchMatch = searchQuery === '' || 
       drink.name.toLowerCase().includes(searchLower) ||
       drink.description.toLowerCase().includes(searchLower);
-    
     return categoryMatch && searchMatch;
   });
 
@@ -46,6 +45,27 @@ export default function MainPage() {
     // Навігація до сторінки деталей напою
     navigate(`/product/${id}`);
   };
+
+  if (loading) {
+    return (
+      <div className="bg-[#fff5e6] min-h-screen w-full pt-[65px]">
+        <Header searchQuery={searchQuery} onSearchChange={setSearchQuery} />
+        <div className="max-w-[1760px] mx-auto px-4 sm:px-6 lg:px-20 py-12">
+          <p className="text-center text-[#666]">Завантаження меню...</p>
+        </div>
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div className="bg-[#fff5e6] min-h-screen w-full pt-[65px]">
+        <Header searchQuery={searchQuery} onSearchChange={setSearchQuery} />
+        <div className="max-w-[1760px] mx-auto px-4 sm:px-6 lg:px-20 py-12">
+          <p className="text-center text-red-600">Помилка: {error}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-[#fff5e6] min-h-screen w-full pt-[65px]">

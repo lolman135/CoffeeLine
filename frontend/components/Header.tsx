@@ -1,5 +1,4 @@
 import { useNavigate } from 'react-router-dom';
-import { Search, ShoppingCart, User, LogOut } from 'lucide-react';
 import svgPaths from "../imports/svg-tpegvdjy05";
 import { useCart } from "../contexts/CartContext";
 import { useAuth } from "../contexts/AuthContext";
@@ -26,11 +25,18 @@ interface HeaderProps {
 export default function Header({ searchQuery = '', onSearchChange }: HeaderProps) {
   const navigate = useNavigate();
   const { totalItems } = useCart();
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
 
   const handleLogout = () => {
     logout();
     navigate('/login');
+  };
+
+  const isAdmin = !!user?.roles && user.roles.split(',').map(r => r.trim().toUpperCase()).includes('ADMIN');
+
+  const handleProfileClick = () => {
+    const hasToken = (() => { try { return !!localStorage.getItem('authToken'); } catch { return false; } })();
+    navigate(hasToken ? '/profile' : '/login');
   };
 
   return (
@@ -67,6 +73,15 @@ export default function Header({ searchQuery = '', onSearchChange }: HeaderProps
 
           {/* Icons */}
           <div className="flex items-center gap-2">
+            {/* Admin Button (visible only for ADMIN) */}
+            {isAdmin && (
+              <button
+                onClick={() => navigate('/admin')}
+                className="h-[32px] px-3 rounded-[6px] bg-[darkorange] text-white hover:bg-[#ff9500] transition-colors"
+              >
+                Admin
+              </button>
+            )}
             {/* Cart Icon with Badge */}
             <button 
               onClick={() => navigate('/cart')}
@@ -90,7 +105,7 @@ export default function Header({ searchQuery = '', onSearchChange }: HeaderProps
 
             {/* User Icon */}
             <button 
-              onClick={() => navigate('/profile')}
+              onClick={handleProfileClick}
               className="h-[32px] w-[40px] rounded-[6px] hover:bg-gray-100 transition-colors flex items-center justify-center"
             >
               <svg className="w-[20px] h-[20px]" fill="none" preserveAspectRatio="none" viewBox="0 0 20 20">

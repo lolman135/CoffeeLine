@@ -1,39 +1,47 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Header from './Header';
 import { User, ArrowLeft } from 'lucide-react';
 import { useOrders } from '../contexts/OrdersContext';
 import { useAuth } from '../contexts/AuthContext';
+import { updateMe } from '../src/api/auth';
 
 export default function ProfilePage() {
   const navigate = useNavigate();
   const { orders } = useOrders();
   const { user } = useAuth();
-  
-  // Mock data - в реальному застосунку це буде з бекенду
-  const [fullName, setFullName] = useState('Іванов Іван Іванович');
-  const [phone, setPhone] = useState('+380501234567');
-  const [address, setAddress] = useState('м. Київ, вул. Хрещатик, 1');
-  const [email, setEmail] = useState('ivan.ivanov@email.com');
+  const [fullName, setFullName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [address, setAddress] = useState('');
+  const [email, setEmail] = useState('');
   const [activeTab, setActiveTab] = useState<'profile' | 'orders'>('profile');
-
   const [isEdited, setIsEdited] = useState(false);
+  const [saving, setSaving] = useState(false);
 
-  const handleChange = () => {
-    setIsEdited(true);
+  useEffect(() => {
+    if (user) {
+      setFullName(user.name || '');
+      setPhone(user.phoneNumber || '');
+      setEmail(user.email || '');
+    }
+  }, [user]);
+
+  const handleChange = () => setIsEdited(true);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await updateMe({ name: fullName, phoneNumber: phone });
+      setIsEdited(false);
+      alert('Зміни успішно збережено!');
+    } catch (e) {
+      alert('Не вдалося зберегти зміни');
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleSave = () => {
-    // Тут буде логіка збереження даних на бекенді
-    console.log('Saving profile:', { fullName, phone, address, email });
-    setIsEdited(false);
-    
-    // Показуємо toast повідомлення (можна додати toast)
-    alert('Зміни успішно збережено!');
-  };
-
-  // Фільтруємо замовлення користувача
-  const userOrders = orders.filter(order => order.userId === user?.email);
+  const userOrders = orders.filter(order => order.userId === user?.id);
 
   const getStatusText = (status: string) => {
     switch (status) {
