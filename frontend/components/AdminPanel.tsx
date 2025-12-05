@@ -2,10 +2,10 @@ import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LogOut, Plus, Pencil, Trash2, X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { useOrders, Order, OrderStatus } from '../contexts/OrdersContext';
+import { useOrders } from '../contexts/OrdersContext';
 import { useDrinks } from '../contexts/DrinksContext';
 import { Drink } from '../data/drinks';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import svgPaths from "../imports/svg-k4b1fjq95c";
 import imgEspresso from '../src/imgEspresso.jpg';
 import imgCappuccino from '../src/imgCappuccino.jpg';
@@ -13,6 +13,8 @@ import imgLatte from '../src/imgLatte.jpeg';
 import imgAmericano from '../src/imgAmericano.jpg';
 import imgIcedLatte from '../src/imgIcedLatte.jpg';
 import imgRaf from '../src/imgRaf.jpg';
+import { getAllOrders } from '../src/api/orders';
+import { apiFetch } from '../src/api/client';
 
 // Маппінг ID напоїв до імпортованих картинок
 const drinkImages: Record<string, string> = {
@@ -396,292 +398,6 @@ function StatisticsTab() {
           </ResponsiveContainer>
         </div>
       </div>
-    </div>
-  );
-}
-
-// Замовлення Tab
-function OrdersTab() {
-  const { orders, updateOrderStatus } = useOrders();
-  const [sortField, setSortField] = useState<'id' | 'customerName' | 'total' | 'status' | 'time'>('time');
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
-
-  const handleSort = (field: typeof sortField) => {
-    if (field === sortField) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortField(field);
-      setSortDirection('asc');
-    }
-  };
-
-  const sortedOrders = useMemo(() => {
-    return [...orders].sort((a, b) => {
-      let aValue: any = a[sortField];
-      let bValue: any = b[sortField];
-
-      if (sortField === 'total') {
-        aValue = Number(aValue);
-        bValue = Number(bValue);
-      }
-
-      if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
-      if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
-      return 0;
-    });
-  }, [orders, sortField, sortDirection]);
-
-  // Pagination logic
-  const totalPages = Math.ceil(sortedOrders.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const paginatedOrders = sortedOrders.slice(startIndex, endIndex);
-
-  // Reset to page 1 when items per page changes
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [itemsPerPage]);
-
-  const handlePageChange = (page: number) => {
-    setCurrentPage(page);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const getPageNumbers = () => {
-    const pages = [];
-    const maxVisiblePages = 5;
-    
-    if (totalPages <= maxVisiblePages) {
-      for (let i = 1; i <= totalPages; i++) {
-        pages.push(i);
-      }
-    } else {
-      if (currentPage <= 3) {
-        for (let i = 1; i <= 4; i++) pages.push(i);
-        pages.push('...');
-        pages.push(totalPages);
-      } else if (currentPage >= totalPages - 2) {
-        pages.push(1);
-        pages.push('...');
-        for (let i = totalPages - 3; i <= totalPages; i++) pages.push(i);
-      } else {
-        pages.push(1);
-        pages.push('...');
-        pages.push(currentPage - 1);
-        pages.push(currentPage);
-        pages.push(currentPage + 1);
-        pages.push('...');
-        pages.push(totalPages);
-      }
-    }
-    
-    return pages;
-  };
-
-  const getStatusConfig = (status: OrderStatus) => {
-    switch (status) {
-      case 'pending':
-        return { text: 'Очікує', bg: '#fef3c6', color: '#973c00' };
-      case 'preparing':
-        return { text: 'Готується', bg: '#DBEAFE', color: '#193CB8' };
-      case 'ready':
-        return { text: 'Готово', bg: '#DCFCE7', color: '#016630' };
-      case 'completed':
-        return { text: 'Завершено', bg: '#F3E8FF', color: '#6E11B0' };
-      case 'cancelled':
-        return { text: 'Скасовано', bg: '#FFE2E2', color: '#9F0712' };
-      default:
-        return { text: 'Очікує', bg: '#fef3c6', color: '#973c00' };
-    }
-  };
-
-  const handleStatusChange = (orderId: string, newStatus: OrderStatus) => {
-    updateOrderStatus(orderId, newStatus);
-  };
-
-  return (
-    <div>
-      {/* Items per page selector */}
-      {sortedOrders.length > 0 && (
-        <div className="flex items-center justify-end mb-4">
-          <div className="flex items-center gap-2">
-            <span className="font-['Inter:Regular',sans-serif] text-[14px] text-zinc-600">
-              Показати:
-            </span>
-            <select
-              value={itemsPerPage}
-              onChange={(e) => setItemsPerPage(Number(e.target.value))}
-              className="h-[36px] px-3 bg-white rounded-[6px] border border-zinc-200 shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] font-['Inter:Regular',sans-serif] text-[14px] text-black outline-none cursor-pointer"
-            >
-              <option value={5}>5</option>
-              <option value={10}>10</option>
-              <option value={20}>20</option>
-              <option value={50}>50</option>
-            </select>
-          </div>
-        </div>
-      )}
-
-      <div className="bg-white rounded-[8px] border border-zinc-200 shadow-[0px_1px_2px_-1px_rgba(0,0,0,0.1),0px_1px_3px_0px_rgba(0,0,0,0.1)]">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50 border-b border-zinc-200">
-              <tr>
-                <th
-                  onClick={() => handleSort('id')}
-                  className="px-6 py-3 text-left font-['Inter:Semi_Bold',sans-serif] font-semibold text-[14px] text-zinc-700 cursor-pointer hover:bg-gray-100"
-                >
-                  Номер {sortField === 'id' && (sortDirection === 'asc' ? '↑' : '↓')}
-                </th>
-                <th
-                  onClick={() => handleSort('customerName')}
-                  className="px-6 py-3 text-left font-['Inter:Semi_Bold',sans-serif] font-semibold text-[14px] text-zinc-700 cursor-pointer hover:bg-gray-100"
-                >
-                  Клієнт {sortField === 'customerName' && (sortDirection === 'asc' ? '↑' : '↓')}
-                </th>
-                <th className="px-6 py-3 text-left font-['Inter:Semi_Bold',sans-serif] font-semibold text-[14px] text-zinc-700">
-                  Товари
-                </th>
-                <th
-                  onClick={() => handleSort('total')}
-                  className="px-6 py-3 text-left font-['Inter:Semi_Bold',sans-serif] font-semibold text-[14px] text-zinc-700 cursor-pointer hover:bg-gray-100"
-                >
-                  Сума {sortField === 'total' && (sortDirection === 'asc' ? '↑' : '↓')}
-                </th>
-                <th
-                  onClick={() => handleSort('status')}
-                  className="px-6 py-3 text-left font-['Inter:Semi_Bold',sans-serif] font-semibold text-[14px] text-zinc-700 cursor-pointer hover:bg-gray-100"
-                >
-                  Статус {sortField === 'status' && (sortDirection === 'asc' ? '↑' : '↓')}
-                </th>
-                <th
-                  onClick={() => handleSort('time')}
-                  className="px-6 py-3 text-left font-['Inter:Semi_Bold',sans-serif] font-semibold text-[14px] text-zinc-700 cursor-pointer hover:bg-gray-100"
-                >
-                  Час {sortField === 'time' && (sortDirection === 'asc' ? '↑' : '↓')}
-                </th>
-                <th className="px-6 py-3 text-left font-['Inter:Semi_Bold',sans-serif] font-semibold text-[14px] text-zinc-700">
-                  Дії
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {paginatedOrders.map((order, index) => {
-                const statusConfig = getStatusConfig(order.status);
-                return (
-                  <tr key={order.id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                    <td className="px-6 py-4 font-['Inter:Medium',sans-serif] font-medium text-[14px] text-black">
-                      #{order.id}
-                    </td>
-                    <td className="px-6 py-4 font-['Inter:Regular',sans-serif] text-[14px] text-black">
-                      <div>{order.customerName}</div>
-                      <div className="text-zinc-500">{order.phone}</div>
-                    </td>
-                    <td className="px-6 py-4 font-['Inter:Regular',sans-serif] text-[14px] text-black">
-                      {order.items.map((item, i) => (
-                        <div key={i} className="text-sm">
-                          {item.name} x{item.quantity}
-                        </div>
-                      ))}
-                    </td>
-                    <td className="px-6 py-4 font-['Inter:Medium',sans-serif] font-medium text-[14px] text-black">
-                      {order.total} ₴
-                    </td>
-                    <td className="px-6 py-4">
-                      <div
-                        className="inline-flex h-[22px] px-[10px] rounded-[6px] items-center justify-center"
-                        style={{ backgroundColor: statusConfig.bg }}
-                      >
-                        <p
-                          className="font-['Inter:Medium',sans-serif] font-medium text-[12px]"
-                          style={{ color: statusConfig.color }}
-                        >
-                          {statusConfig.text}
-                        </p>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 font-['Inter:Regular',sans-serif] text-[14px] text-zinc-500">
-                      {order.date} {order.time}
-                    </td>
-                    <td className="px-6 py-4">
-                      <select
-                        value={order.status}
-                        onChange={(e) => handleStatusChange(order.id, e.target.value as OrderStatus)}
-                        className="bg-white border border-zinc-300 rounded-[4px] px-2 py-1 text-[14px] font-['Inter:Regular',sans-serif] text-black"
-                      >
-                        <option value="pending">Очікує</option>
-                        <option value="preparing">Готується</option>
-                        <option value="ready">Готово</option>
-                        <option value="completed">Завершено</option>
-                        <option value="cancelled">Скасовано</option>
-                      </select>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-        {paginatedOrders.length === 0 && (
-          <div className="p-12 text-center">
-            <p className="font-['Inter:Regular',sans-serif] text-[16px] text-zinc-500">
-              Немає замовлень
-            </p>
-          </div>
-        )}
-      </div>
-
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-center mt-6">
-          <button
-            onClick={() => handlePageChange(currentPage - 1)}
-            className={`h-[32px] px-4 rounded-[6px] border border-zinc-200 shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] hover:bg-gray-50 transition-colors ${
-              currentPage === 1 ? 'opacity-50 cursor-not-allowed' : ''
-            }`}
-            disabled={currentPage === 1}
-          >
-            <span className="font-['Inter:Medium',sans-serif] font-medium text-[14px] text-black">
-              Назад
-            </span>
-          </button>
-          <div className="flex items-center gap-2 mx-4">
-            {getPageNumbers().map((page, idx) => (
-              <button
-                key={idx}
-                onClick={() => typeof page === 'number' && handlePageChange(page)}
-                disabled={typeof page !== 'number'}
-                className={`h-[32px] px-4 rounded-[6px] border border-zinc-200 shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] transition-colors ${
-                  page === currentPage 
-                    ? 'bg-[darkorange] text-white border-[darkorange]' 
-                    : typeof page === 'number' 
-                      ? 'hover:bg-gray-50 cursor-pointer' 
-                      : 'cursor-default border-transparent'
-                }`}
-              >
-                <span className={`font-['Inter:Medium',sans-serif] font-medium text-[14px] ${
-                  page === currentPage ? 'text-white' : 'text-black'
-                }`}>
-                  {page}
-                </span>
-              </button>
-            ))}
-          </div>
-          <button
-            onClick={() => handlePageChange(currentPage + 1)}
-            className={`h-[32px] px-4 rounded-[6px] border border-zinc-200 shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] hover:bg-gray-50 transition-colors ${
-              currentPage === totalPages ? 'opacity-50 cursor-not-allowed' : ''
-            }`}
-            disabled={currentPage === totalPages}
-          >
-            <span className="font-['Inter:Medium',sans-serif] font-medium text-[14px] text-black">
-              Далі
-            </span>
-          </button>
-        </div>
-      )}
     </div>
   );
 }
@@ -1097,6 +813,31 @@ function MenuTab() {
 
 export default function AdminPanel() {
   const [activeTab, setActiveTab] = useState<'statistics' | 'orders' | 'menu'>('statistics');
+  const [orders, setOrders] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLoading(true);
+    getAllOrders()
+      .then(async (res: any) => {
+        const list = Array.isArray(res) ? res : res.orders;
+        const withNames = await Promise.all(
+          list.map(async (o: any) => {
+            try {
+              const user = await apiFetch<any>(`/api/v1/users/${o.userId}`);
+              return { ...o, userName: user?.name || '' };
+            } catch {
+              return { ...o, userName: '' };
+            }
+          })
+        );
+        setOrders(withNames);
+        setError(null);
+      })
+      .catch((e) => setError(e?.message || 'Не вдалося завантажити замовлення'))
+      .finally(() => setLoading(false));
+  }, []);
 
   return (
     <div className="bg-[#fff5e6] min-h-screen">
@@ -1165,7 +906,26 @@ export default function AdminPanel() {
 
           {/* Tab Content */}
           {activeTab === 'statistics' && <StatisticsTab />}
-          {activeTab === 'orders' && <OrdersTab />}
+          {activeTab === 'orders' && (
+            <div>
+              <h1 className="font-['Inter:Semi_Bold',sans-serif] font-semibold text-[#333333] text-[28px] md:text-[32px] mb-6">
+                Всі замовлення
+              </h1>
+              {loading && <p>Завантаження...</p>}
+              {error && <p className="text-red-600">{error}</p>}
+              {!loading && !error && (
+                <div className="bg-white rounded-[12px] border border-neutral-200 shadow p-6">
+                  {orders.map((o) => (
+                    <div key={o.id} className="flex items-center justify-between py-2 border-b last:border-b-0">
+                      <span>#{o.id}</span>
+                      <span>Статус: {o.status}</span>
+                      <span>Користувач: {o.userName || o.userId}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
           {activeTab === 'menu' && <MenuTab />}
         </div>
       </main>

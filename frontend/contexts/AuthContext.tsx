@@ -1,7 +1,14 @@
 import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { signIn, fetchMe } from '../src/api/auth';
+import { signIn, fetchMe, signUp } from '../src/api/auth';
 
 export type UserRole = 'customer' | 'cashier' | 'admin';
+
+interface OrderDto {
+  id: string;
+  createdAt?: string;
+  totalCost?: number;
+  status?: string;
+}
 
 interface UserProfile {
   id: string;
@@ -9,6 +16,7 @@ interface UserProfile {
   email: string;
   phoneNumber?: string;
   roles?: string;
+  orders?: OrderDto[];
 }
 
 interface AuthContextType {
@@ -16,6 +24,7 @@ interface AuthContextType {
   token: string | null;
   user: UserProfile | null;
   login: (email: string, password: string) => Promise<void>;
+  register: (name: string, phoneNumber: string, email: string, password: string) => Promise<void>;
   logout: () => void;
 }
 
@@ -55,6 +64,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(profile);
   };
 
+  const register = async (name: string, phoneNumber: string, email: string, password: string) => {
+    const t = await signUp({ name, phoneNumber, email, password });
+    localStorage.setItem(TOKEN_KEY, t);
+    setToken(t);
+    setIsAuthenticated(true);
+    const profile = await fetchMe<UserProfile>();
+    setUser(profile);
+  };
+
   const logout = () => {
     localStorage.removeItem(TOKEN_KEY);
     setToken(null);
@@ -63,7 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, token, user, login, logout }}>
+    <AuthContext.Provider value={{ isAuthenticated, token, user, login, register, logout }}>
       {children}
     </AuthContext.Provider>
   );

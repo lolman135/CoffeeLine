@@ -1,30 +1,48 @@
-import { useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import Header from './Header';
-import { useOrders } from '../contexts/OrdersContext';
-import svgPaths from '../imports/svg-r3to1jj5ar';
+import { getOrderById } from '../src/api/orders';
+import { apiFetch } from '../src/api/client';
 
 export default function OrderStatusPage() {
-  const navigate = useNavigate();
   const { orderId } = useParams<{ orderId: string }>();
-  const { getOrderById } = useOrders();
+  const navigate = useNavigate();
+  const [order, setOrder] = useState<{ id: string; status: string; items?: Array<{ name?: string; size?: string; additions?: string[]; quantity: number; price?: number }>; userId?: string; total?: number; date?: string; time?: string } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Якщо немає orderId, перенаправити на каталог
-    if (!orderId) {
-      navigate('/catalog');
-    }
-  }, [orderId, navigate]);
+    if (!orderId) return;
+    setLoading(true);
+    getOrderById(orderId)
+      .then(async (o) => {
+        setOrder(o as any);
+        setError(null);
+      })
+      .catch((e) => setError(e?.message || 'Не вдалося завантажити замовлення'))
+      .finally(() => setLoading(false));
+  }, [orderId]);
 
-  if (!orderId) {
-    return null;
+  if (loading) {
+    return (
+      <div className="bg-[#fff5e6] min-h-screen w-full pt-[65px]">
+        <Header />
+        <div className="max-w-[1760px] mx-auto px-4 py-8">
+          <p>Завантаження замовлення...</p>
+        </div>
+      </div>
+    );
   }
-
-  const order = getOrderById(orderId);
-
-  if (!order) {
-    return null;
+  if (error || !order) {
+    return (
+      <div className="bg-[#fff5e6] min-h-screen w-full pt-[65px]">
+        <Header />
+        <div className="max-w-[1760px] mx-auto px-4 py-8">
+          <p>Замовлення не знайдено</p>
+        </div>
+      </div>
+    );
   }
 
   const getDeliveryMethodText = (method: string) => {
@@ -72,8 +90,7 @@ export default function OrderStatusPage() {
   return (
     <div className="bg-[#fff5e6] min-h-screen w-full pt-[65px]">
       <Header />
-
-      <div className="max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-20 py-6 lg:py-12">
+      <div className="max-w-[1760px] mx-auto px-4 sm:px-6 lg:px-20 py-6 lg:py-12">
         {/* Back Button */}
         <button
           onClick={() => navigate('/catalog')}
@@ -195,14 +212,14 @@ export default function OrderStatusPage() {
 
               {/* Items List */}
               <div className="space-y-2 mb-4">
-                {order.items.map((item, index) => (
+                {order.items?.map((item: { name?: string; size?: string; additions?: string[]; quantity: number; price?: number }, index: number) => (
                   <div key={index} className="flex justify-between items-start">
                     <p className="font-['Inter:Regular',sans-serif] font-normal text-[14px] text-[#666666] flex-1">
-                      {item.name} {item.size && `(${item.size})`} x{item.quantity}
+                      {item.name || 'Кава'} {item.size && `(${item.size})`} x{item.quantity}
                       {item.additions && item.additions.length > 0 && ` + ${item.additions.join(', ')}`}
                     </p>
                     <p className="font-['Inter:Medium',sans-serif] font-medium text-[16px] text-[#101828]">
-                      {item.price * item.quantity} ₴
+                      {item.price ? item.price * item.quantity : ''}
                     </p>
                   </div>
                 ))}

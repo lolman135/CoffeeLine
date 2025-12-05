@@ -2,43 +2,29 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Plus, Minus, Trash2, ShoppingCart } from 'lucide-react';
 import Header from './Header';
 import { useCart } from '../contexts/CartContext';
-import svgPaths from "../imports/svg-7pu42cx4zd";
-import imgEspresso from '../src/imgEspresso.jpg';
-import imgCappuccino from '../src/imgCappuccino.jpg';
-import imgLatte from '../src/imgLatte.jpeg';
-import imgAmericano from '../src/imgAmericano.jpg';
-import imgIcedLatte from '../src/imgIcedLatte.jpg';
-import imgRaf from '../src/imgRaf.jpg';
-
-// Маппінг ID напоїв до імпортованих картинок
-const drinkImages: Record<string, string> = {
-  '1': imgEspresso,
-  '2': imgCappuccino,
-  '3': imgLatte,
-  '4': imgAmericano,
-  '5': imgIcedLatte,
-  '6': imgRaf,
-};
+import { useAuth } from '../contexts/AuthContext';
+import { createOrder } from '../src/api/orders';
 
 export default function CartPage() {
   const navigate = useNavigate();
-  const { items, removeItem, updateQuantity, totalPrice } = useCart();
+  const { items, removeItem, updateQuantity, totalPrice, clearCart } = useCart();
+  const { user } = useAuth();
 
-  const handleCheckout = () => {
-    navigate('/checkout');
+  const handleCheckout = async () => {
+    if (!user?.id) {
+      navigate('/login');
+      return;
+    }
+    try {
+      const orderItems = items.map(i => ({ coffeeId: i.drinkId, quantity: i.quantity }));
+      const res = await createOrder({ userId: user.id, orderItems });
+      clearCart();
+      navigate(`/order-status/${res.id}`);
+    } catch (e: any) {
+      alert(e?.message || 'Не вдалося створити замовлення');
+    }
   };
 
-  const getSizeNameInUkrainian = (sizeName: string) => {
-    const sizeMap: Record<string, string> = {
-      'Малий': 'малий',
-      'Середній': 'середній',
-      'Великий': 'великий',
-      'Small': 'малий',
-      'Medium': 'середній',
-      'Large': 'великий'
-    };
-    return sizeMap[sizeName] || sizeName.toLowerCase();
-  };
 
   const getSizeNameCapitalized = (sizeName: string) => {
     const sizeMap: Record<string, string> = {
@@ -132,7 +118,7 @@ export default function CartPage() {
                   {/* Image */}
                   <div className="w-[80px] h-[80px] sm:w-[100px] sm:h-[100px] rounded-[8px] overflow-hidden flex-shrink-0">
                     <img
-                      src={drinkImages[item.drinkId] || item.drinkImage}
+                      src={item.drinkImage}
                       alt={item.drinkName}
                       className="w-full h-full object-cover"
                     />

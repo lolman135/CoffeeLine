@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import svgPaths from "../imports/svg-ogbmsixxy7";
 
 function CoffeeLogo() {
@@ -72,22 +73,43 @@ function TabButtons() {
 
 function RegisterForm() {
   const navigate = useNavigate();
+  const { register } = useAuth();
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Тут буде логіка реєстрації
-    console.log('Register:', { fullName, phone, email, password, confirmPassword });
-    // Переходимо на каталог
-    navigate('/catalog');
+    setError('');
+    if (password !== confirmPassword) {
+      setError('Паролі не співпадають');
+      return;
+    }
+    setLoading(true);
+    try {
+      await register(fullName, phone, email, password);
+      navigate('/catalog');
+    } catch (err: any) {
+      setError(err?.message || 'Помилка реєстрації');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div className="relative w-full">
+      {error && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-[8px]">
+          <p className="font-['Inter:Medium',sans-serif] font-medium text-[14px] text-red-600">
+            {error}
+          </p>
+        </div>
+      )}
+
       {/* Full Name Field */}
       <div className="mb-6">
         <label className="block font-['Inter:Medium',sans-serif] font-medium text-[#333333] text-[14px] mb-2">
@@ -171,9 +193,10 @@ function RegisterForm() {
       {/* Submit Button */}
       <button 
         onClick={handleSubmit}
-        className="w-full bg-gradient-to-b from-[#ff8c00] h-[48px] rounded-[8px] shadow-[0px_4px_6px_-4px_rgba(255,140,0,0.2),0px_10px_15px_-3px_rgba(255,140,0,0.2)] to-[#ffa500] cursor-pointer hover:from-[#ff9500] hover:to-[#ffb000] transition-colors mb-6 flex items-center justify-center"
+        disabled={loading}
+        className={`w-full ${loading ? 'opacity-70 cursor-not-allowed' : ''} bg-gradient-to-b from-[#ff8c00] h-[48px] rounded-[8px] shadow-[0px_4px_6px_-4px_rgba(255,140,0,0.2),0px_10px_15px_-3px_rgba(255,140,0,0.2)] to-[#ffa500] cursor-pointer hover:from-[#ff9500] hover:to-[#ffb000] transition-colors mb-6 flex items-center justify-center`}
       >
-        <p className="font-['Inter:Semi_Bold',sans-serif] font-semibold text-[16px] text-center text-white">Зареєструватися</p>
+        <p className="font-['Inter:Semi_Bold',sans-serif] font-semibold text-[16px] text-center text-white">{loading ? 'Реєстрація...' : 'Зареєструватися'}</p>
       </button>
 
       {/* Login Link */}

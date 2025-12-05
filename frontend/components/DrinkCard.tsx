@@ -4,20 +4,21 @@ interface DrinkCardProps {
   description: string;
   price: number;
   image: string;
-  onSelectOptions: (id: string) => void;
+  onOpenDetails: (id: string) => void;
+  onAddToCart: (id: string) => void;
 }
 
-export default function DrinkCard({ id, name, description, price, image, onSelectOptions }: DrinkCardProps) {
+export default function DrinkCard({ id, name, description, price, image, onOpenDetails, onAddToCart }: DrinkCardProps) {
   return (
     <div className="bg-white rounded-[12px] border border-[#dddddd] shadow-[0px_1px_2px_-1px_rgba(0,0,0,0.1),0px_1px_3px_0px_rgba(0,0,0,0.1)] overflow-hidden h-full flex flex-col">
       {/* Image */}
-      <div className="relative w-full aspect-square overflow-hidden">
-        <img 
+      <button className="relative w-full aspect-square overflow-hidden" onClick={() => onOpenDetails(id)}>
+        <img
           alt={name} 
           className="w-full h-full object-cover" 
           src={image} 
         />
-      </div>
+      </button>
 
       {/* Content */}
       <div className="p-4 flex-1 flex flex-col">
@@ -35,16 +36,16 @@ export default function DrinkCard({ id, name, description, price, image, onSelec
         <div className="flex items-center justify-between gap-3">
           {/* Price */}
           <p className="font-['Inter:Bold',sans-serif] font-bold text-[20px] text-[darkorange] whitespace-nowrap">
-            від {price} ₴
+            {price} ₴
           </p>
           
           {/* Button */}
           <button 
-            onClick={() => onSelectOptions(id)}
+            onClick={() => onAddToCart(id)}
             className="bg-[darkorange] h-[32px] px-4 rounded-[6px] shadow-[0px_2px_4px_-2px_rgba(255,140,0,0.2),0px_4px_6px_-1px_rgba(255,140,0,0.2)] cursor-pointer hover:bg-[#ff9500] transition-colors flex-shrink-0"
           >
             <span className="font-['Inter:Medium',sans-serif] font-medium text-[14px] text-white whitespace-nowrap">
-              Обрати опції
+              Додати до кошика
             </span>
           </button>
         </div>

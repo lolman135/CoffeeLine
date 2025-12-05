@@ -5,6 +5,7 @@ import com.example.CoffeeLine.dto.user.UserListResponseDto;
 import com.example.CoffeeLine.dto.user.UserResponseDto;
 import com.example.CoffeeLine.dto.user.UserUpdateRequestDto;
 import com.example.CoffeeLine.service.UserService;
+import com.example.CoffeeLine.service.repository.UserRepository;
 import com.example.CoffeeLine.web.mapper.UserMapper;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -29,6 +30,7 @@ import java.util.UUID;
 public class UserController {
     private final UserService userService;
     private final UserMapper userMapper;
+    private final UserRepository userRepository;
 
     @Operation(summary = "Get all users")
     @ApiResponses(value = {
@@ -320,7 +322,8 @@ public class UserController {
     public ResponseEntity<Object> getMe(@AuthenticationPrincipal com.example.CoffeeLine.domain.User userDetails) {
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(userMapper.toUserResponseDto(userDetails));
+                .body(userMapper.toUserResponseDto(
+                        userService.getUserById(userDetails.getId())));
     }
 
     @Operation(summary = "Update current user", description = "Updates user info from access token")

@@ -1,6 +1,8 @@
 package com.example.CoffeeLine.dto.user;
 
 import lombok.Value;
+import java.util.List;
+import com.example.CoffeeLine.dto.order.OrderResponseDto;
 
 @Value
 public class UserResponseDto {
@@ -9,4 +11,5 @@ public class UserResponseDto {
     String email;
     String phoneNumber;
     String roles;
+    List<OrderResponseDto> orders;
 }

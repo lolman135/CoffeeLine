@@ -4,12 +4,13 @@ import Header from './Header';
 import Toast from './Toast';
 import DrinkCard from './DrinkCard';
 import { useDrinks } from '../contexts/DrinksContext';
-import imgEspresso from '@/src/imgEspresso.jpg';
-import imgCappuccino from '@/src/imgCappuccino.jpg';
-import imgLatte from '@/src/imgLatte.jpeg';
-import imgAmericano from '@/src/imgAmericano.jpg';
-import imgIcedLatte from '@/src/imgIcedLatte.jpg';
-import imgRaf from '@/src/imgRaf.jpg';
+import { useCart } from '../contexts/CartContext';
+import imgEspresso from '../src/imgEspresso.jpg';
+import imgCappuccino from '../src/imgCappuccino.jpg';
+import imgLatte from '../src/imgLatte.jpeg';
+import imgAmericano from '../src/imgAmericano.jpg';
+import imgIcedLatte from '../src/imgIcedLatte.jpg';
+import imgRaf from '../src/imgRaf.jpg';
 
 type Category = 'all' | 'hot' | 'cold';
 
@@ -26,6 +27,7 @@ const drinkImages: Record<string, string> = {
 export default function MainPage() {
   const navigate = useNavigate();
   const { drinks, loading, error } = useDrinks();
+  const { addItem, showToast } = useCart();
   const [selectedCategory, setSelectedCategory] = useState<Category>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -41,9 +43,27 @@ export default function MainPage() {
     return categoryMatch && searchMatch;
   });
 
-  const handleSelectOptions = (id: string) => {
-    // Навігація до сторінки деталей напою
+  const openDetails = (id: string) => {
     navigate(`/product/${id}`);
+  };
+
+  const addToCart = (id: string) => {
+    const drink = drinks.find(d => d.id === id);
+    if (!drink) return;
+    const price = drink.price || (drink as any).basePrice || 0;
+    const item = {
+      id: `${drink.id}-${Date.now()}`,
+      drinkId: drink.id,
+      drinkName: drink.name,
+      drinkImage: drink.image,
+      size: { id: 'default', name: 'Стандарт', volume: '', price },
+      addons: [],
+      quantity: 1,
+      pricePerUnit: price,
+      totalPrice: price,
+    };
+    addItem(item);
+    showToast(`${drink.name} додано до кошика!`);
   };
 
   if (loading) {
@@ -131,7 +151,7 @@ export default function MainPage() {
         </div>
 
         {/* Drinks Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 lg:gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl-grid-cols-5 gap-4 lg:gap-6">
           {filteredDrinks.map((drink) => (
             <DrinkCard
               key={drink.id}
@@ -140,7 +160,8 @@ export default function MainPage() {
               description={drink.description}
               price={drink.price}
               image={drinkImages[drink.id] || drink.image}
-              onSelectOptions={handleSelectOptions}
+              onOpenDetails={openDetails}
+              onAddToCart={addToCart}
             />
           ))}
         </div>

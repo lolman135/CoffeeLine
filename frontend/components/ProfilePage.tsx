@@ -1,22 +1,19 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Header from './Header';
-import { User, ArrowLeft } from 'lucide-react';
-import { useOrders } from '../contexts/OrdersContext';
+import { ArrowLeft } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { updateMe } from '../src/api/auth';
 
 export default function ProfilePage() {
   const navigate = useNavigate();
-  const { orders } = useOrders();
   const { user } = useAuth();
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
-  const [address, setAddress] = useState('');
   const [email, setEmail] = useState('');
   const [activeTab, setActiveTab] = useState<'profile' | 'orders'>('profile');
   const [isEdited, setIsEdited] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [saving, setSaving] = useState<boolean>(false);
 
   useEffect(() => {
     if (user) {
@@ -41,7 +38,15 @@ export default function ProfilePage() {
     }
   };
 
-  const userOrders = orders.filter(order => order.userId === user?.id);
+  const userOrders = (user?.orders ?? []).map(o => ({
+    id: o.id,
+    status: o.status ?? 'pending',
+    date: (o as any).date ?? '',
+    time: (o as any).time ?? '',
+    total: (o as any).total ?? o.totalCost ?? 0,
+    items: (o as any).items ?? [],
+    userId: user?.id,
+  }));
 
   const getStatusText = (status: string) => {
     switch (status) {
@@ -187,24 +192,6 @@ export default function ProfilePage() {
                     </div>
                   </div>
 
-                  {/* Address Field */}
-                  <div className="mb-6">
-                    <label className="block font-['Inter:Medium',sans-serif] font-medium text-[#333333] text-[14px] mb-2">
-                      Адреса
-                    </label>
-                    <div className="relative bg-neutral-100 h-[50px] rounded-[8px] border border-[#dddddd]">
-                      <input
-                        type="text"
-                        value={address}
-                        onChange={(e) => {
-                          setAddress(e.target.value);
-                          handleChange();
-                        }}
-                        placeholder="Ваша адреса"
-                        className="w-full h-full px-4 bg-transparent font-['Inter:Regular',sans-serif] font-normal text-[16px] text-[#333333] placeholder:text-[rgba(51,51,51,0.7)] outline-none border-none rounded-[8px]"
-                      />
-                    </div>
-                  </div>
 
                   {/* Email Field */}
                   <div className="mb-8">
@@ -294,9 +281,9 @@ export default function ProfilePage() {
 
                             <div className="mb-3">
                               <p className="font-['Inter:Regular',sans-serif] text-[14px] text-[#666666]">
-                                {order.items.map((item, idx) => (
+                                {order.items.map((item: { name?: string; quantity: number }, idx: number) => (
                                   <span key={idx}>
-                                    {item.name} x{item.quantity}
+                                    {item.name ?? 'Кава'} x{item.quantity}
                                     {idx < order.items.length - 1 ? ', ' : ''}
                                   </span>
                                 ))}

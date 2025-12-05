@@ -42,6 +42,9 @@ public class User implements UserDetails, CredentialsContainer {
     @Enumerated(EnumType.STRING)
     private Set<Role> roles = new HashSet<>();
 
+    @OneToMany(mappedBy = "user", fetch = FetchType.LAZY)
+    private List<Order> orders = new LinkedList<>();
+
     @Override
     public void eraseCredentials() {
         this.password = null;
