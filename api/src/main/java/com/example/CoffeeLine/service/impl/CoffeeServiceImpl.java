@@ -6,6 +6,7 @@ import com.example.CoffeeLine.dto.coffee.CoffeeRequestDto;
 import com.example.CoffeeLine.dto.coffee.CoffeeUpdateRequestDto;
 import com.example.CoffeeLine.service.CategoryService;
 import com.example.CoffeeLine.service.CoffeeService;
+import com.example.CoffeeLine.service.command.UpdateCoffeeCommand;
 import com.example.CoffeeLine.service.exception.CoffeeNotFoundException;
 import com.example.CoffeeLine.service.repository.CoffeeRepository;
 import lombok.RequiredArgsConstructor;
@@ -54,24 +55,23 @@ public class CoffeeServiceImpl implements CoffeeService {
     }
 
     @Override
-    public Coffee updateCoffee(CoffeeUpdateRequestDto coffeeUpdateRequestDto) {
-        Coffee coffee = getCoffeeById(
-                UUID.fromString(coffeeUpdateRequestDto.getId()));
-        if (coffeeUpdateRequestDto.getName() != null) {
-            coffee.setName(coffeeUpdateRequestDto.getName());
+    public Coffee updateCoffee(UpdateCoffeeCommand command) {
+        Coffee coffee = getCoffeeById(command.id());
+        if (command.name() != null) {
+            coffee.setName(command.name());
         }
-        if (coffeeUpdateRequestDto.getDescription() != null) {
-            coffee.setDescription(coffeeUpdateRequestDto.getDescription());
+        if (command.descriptions() != null) {
+            coffee.setDescription(command.descriptions());
         }
-        if (coffeeUpdateRequestDto.getPrice() != null) {
-            coffee.setPrice(coffeeUpdateRequestDto.getPrice());
+        if (command.price() != null) {
+            coffee.setPrice(command.price());
         }
-        if (coffeeUpdateRequestDto.getImageUrl() != null) {
-            coffee.setImageUrl(coffeeUpdateRequestDto.getImageUrl());
+        if (command.imageUrl() != null) {
+            coffee.setImageUrl(command.imageUrl());
         }
-        if (coffeeUpdateRequestDto.getCategoryId() != null) {
+        if (command.categoryId() != null) {
             Category category = categoryService.getCategoryById(
-                    UUID.fromString(coffeeUpdateRequestDto.getCategoryId()));
+                    UUID.fromString(command.categoryId()));
             coffee.setCategory(category);
         }
 

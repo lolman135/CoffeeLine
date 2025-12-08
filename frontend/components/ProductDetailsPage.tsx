@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import Header from './Header';
 import { useCart } from '../contexts/CartContext';
-import { fetchCoffeeById } from '../src/api/coffees';
+import { fetchCoffeeById, updateCoffee, CoffeeUpdateRequestDto } from '../src/api/coffees';
 
 interface Drink {
   id: string;
@@ -19,6 +19,10 @@ export default function ProductDetailsPage() {
   const [drink, setDrink] = useState<Drink | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [edit, setEdit] = useState<CoffeeUpdateRequestDto>({});
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -45,6 +49,35 @@ export default function ProductDetailsPage() {
     addItem(item);
     navigate('/cart');
     showToast(`${drink.name} додано до кошика!`);
+  };
+
+  const handleEditChange = (field: keyof CoffeeUpdateRequestDto, value: string) => {
+    setEdit(prev => ({
+      ...prev,
+      [field]: field === 'price' ? (value ? Number(value) : undefined) : (value || undefined),
+    }));
+  };
+
+  const handleSave = async () => {
+    if (!id) return;
+    setSaving(true); setSaveError(null);
+    try {
+      const updated = await updateCoffee(id, edit);
+      setDrink({
+        id: updated.id,
+        name: updated.name,
+        description: updated.description,
+        price: updated.price,
+        imageUrl: updated.imageUrl,
+      });
+      setEdit({});
+      setEditOpen(false);
+      showToast('Напій оновлено');
+    } catch (e: any) {
+      setSaveError(e?.message || 'Помилка збереження');
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (loading) {
@@ -107,6 +140,86 @@ export default function ProductDetailsPage() {
                   {drink.price} ₴
                 </p>
               </div>
+            </div>
+
+            {/* Edit section */}
+            <div className="bg-white rounded-[8px] p-4 mb-6 border border-[#eee]">
+              <button
+                className="text-[14px] text-[#0f0f0f] font-medium mb-3 underline"
+                onClick={() => setEditOpen(v => !v)}
+              >
+                {editOpen ? 'Сховати редагування' : 'Редагувати напій'}
+              </button>
+
+              {editOpen && (
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-[12px] text-neutral-500 mb-1">Назва</label>
+                    <input
+                      className="w-full border rounded px-3 h-9"
+                      defaultValue={drink.name}
+                      onChange={(e) => handleEditChange('name', e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[12px] text-neutral-500 mb-1">Опис</label>
+                    <textarea
+                      className="w-full border rounded px-3 h-20"
+                      defaultValue={drink.description}
+                      onChange={(e) => handleEditChange('description', e.target.value)}
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[12px] text-neutral-500 mb-1">Ціна</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min={1}
+                        className="w-full border rounded px-3 h-9"
+                        defaultValue={drink.price}
+                        onChange={(e) => handleEditChange('price', e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[12px] text-neutral-500 mb-1">Категорія (UUID)</label>
+                      <input
+                        className="w-full border rounded px-3 h-9"
+                        placeholder="00000000-0000-0000-0000-000000000000"
+                        onChange={(e) => handleEditChange('categoryId', e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[12px] text-neutral-500 mb-1">URL зображення</label>
+                    <input
+                      className="w-full border rounded px-3 h-9"
+                      defaultValue={drink.imageUrl || ''}
+                      onChange={(e) => handleEditChange('imageUrl', e.target.value)}
+                    />
+                  </div>
+
+                  {saveError && (
+                    <p className="text-red-600 text-sm">{saveError}</p>
+                  )}
+
+                  <div className="flex gap-3">
+                    <button
+                      onClick={handleSave}
+                      disabled={saving}
+                      className="bg-[darkorange] text-white px-4 h-9 rounded hover:bg-[#ff9500] disabled:opacity-60"
+                    >
+                      {saving ? 'Збереження...' : 'Зберегти'}
+                    </button>
+                    <button
+                      onClick={() => { setEdit({}); setEditOpen(false); setSaveError(null); }}
+                      className="border px-4 h-9 rounded"
+                    >
+                      Скасувати
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             <button

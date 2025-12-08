@@ -9,12 +9,6 @@ import lombok.Value;
 
 @Value
 public class CoffeeUpdateRequestDto {
-
-    @Schema(description = "Coffee ID", example = "a81bc81b-dead-4e5d-abff-90865d1e13b1")
-    @NotBlank(message = "is required")
-    @Size(min = 36, max = 36, message = "must be a valid UUID")
-    String id;
-
     @Schema(description = "Coffee name (not required)")
     @Size(min = 2, max = 50, message = "must be between 2 and 50 characters")
     String name;

@@ -17,6 +17,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -77,7 +79,7 @@ public class OrderServiceImpl implements OrderService {
 
         order.setItems(orderItems);
         Optional<Double> totalCost = orderItems.stream()
-                .map(item -> item.getQuantity() * item.getCoffee().getPrice())
+                .map(item -> round(item.getQuantity() * item.getCoffee().getPrice(), 2))
                 .reduce(Double::sum);
 
         totalCost.ifPresent(order::setTotalCost);
@@ -103,5 +105,9 @@ public class OrderServiceImpl implements OrderService {
     public void deleteOrderById(UUID id) {
         log.info("Deleting order with id: {}", id);
         orderRepository.deleteById(id);
+    }
+
+    private double round(double number, int scale){
+        return new BigDecimal(number).setScale(scale, RoundingMode.HALF_UP).doubleValue();
     }
 }

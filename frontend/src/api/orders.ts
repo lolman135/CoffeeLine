@@ -15,7 +15,7 @@ export async function createOrder(payload: OrderRequestDto): Promise<OrderRespon
   });
 }
 
-export interface OrderItemDto { coffeeId: string; quantity: number }
+export interface OrderItemDto { coffeeId: string; quantity: number; name?: string }
 export interface OrderDto { id: string; userId: string; status: string; items?: OrderItemDto[]; totalCost?: number; createdAt?: string }
 
 export interface Page<T> {

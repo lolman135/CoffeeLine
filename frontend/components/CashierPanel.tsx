@@ -68,10 +68,8 @@ function OrderCard({ order, onAdvance, onCancel, showActions }: OrderCardProps) 
         return { text: 'Створено', bg: '#E6FFFA', color: '#2C7A7F' };
       case 'PROCESSING':
         return { text: 'В обробці', bg: '#DBEAFE', color: '#193CB8' };
-      case 'READY':
-        return { text: 'Готово', bg: '#DCFCE7', color: '#016630' };
       case 'COMPLETED':
-        return { text: 'Завершено', bg: '#F3E8FF', color: '#6E11B0' };
+        return { text: 'Готово', bg: '#DCFCE7', color: '#016630' };
       case 'CANCELLED':
         return { text: 'Скасовано', bg: '#FFE2E2', color: '#9F0712' };
       default:
@@ -202,11 +200,11 @@ export default function CashierPanel() {
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
   const handleRefresh = () => {
-    if (activeTab === 'active') {
-      refresh(0, itemsPerPage, 'CREATED').catch(() => {});
-    } else {
+    // if (activeTab === 'active') {
+    //   refresh(0, itemsPerPage, 'CREATED').catch(() => {});
+    // } else {
       refresh(0, itemsPerPage).catch(() => {});
-    }
+    // }
   };
 
   // Fetch only CREATED when active tab is selected
@@ -330,15 +328,19 @@ export default function CashierPanel() {
                 </p>
               </div>
             ) : (
-              paginatedOrders.map(order => (
-                <OrderCard
-                  key={order.id}
-                  order={order}
-                  onAdvance={onAdvance}
-                  onCancel={handleCancelOrder}
-                  showActions={activeTab === 'active'}
-                />
-              ))
+              <>
+                {/* ===== ACTIVE ORDERS LIST START (visible when `activeTab === 'active'`) ===== */}
+                {paginatedOrders.map(order => (
+                  <OrderCard
+                    key={order.id}
+                    order={order}
+                    onAdvance={onAdvance}
+                    onCancel={handleCancelOrder}
+                    showActions={activeTab === 'active'}
+                  />
+                ))}
+                {/* ===== ACTIVE ORDERS LIST END ===== */}
+              </>
             )}
           </div>
 

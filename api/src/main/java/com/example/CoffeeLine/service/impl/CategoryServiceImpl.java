@@ -2,6 +2,7 @@ package com.example.CoffeeLine.service.impl;
 
 import com.example.CoffeeLine.domain.Category;
 import com.example.CoffeeLine.service.CategoryService;
+import com.example.CoffeeLine.service.exception.CategoryAlreadyExistsException;
 import com.example.CoffeeLine.service.exception.CategoryNotFoundException;
 import com.example.CoffeeLine.service.repository.CategoryRepository;
 import lombok.RequiredArgsConstructor;
@@ -33,7 +34,16 @@ public class CategoryServiceImpl implements CategoryService {
     }
 
     @Override
+    public Category findCategoryByName(String name) {
+        return categoryRepository.findCategoryByName(name).orElseThrow(()
+                -> new CategoryNotFoundException(String.format("Category with name %s not found", name)));
+    }
+
+    @Override
     public Category createCategory(Category category) {
+        if (categoryRepository.existsCategoriesByName(category.getName())){
+            throw new CategoryAlreadyExistsException("This category is already exists");
+        }
         log.info("Creating new category with id: {}", category.getId());
         return categoryRepository.save(category);
     }

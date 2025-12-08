@@ -1,5 +1,7 @@
 package com.example.CoffeeLine.web;
 
+import com.example.CoffeeLine.service.exception.CategoryAlreadyExistsException;
+import com.example.CoffeeLine.service.exception.CategoryNotFoundByNameException;
 import com.example.CoffeeLine.service.exception.EmailAlreadyExistsException;
 import com.example.CoffeeLine.service.exception.ResourceNotFoundException;
 import com.example.CoffeeLine.util.RequestValidationUtil;
@@ -57,12 +59,34 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 .body(problemDetail);
     }
 
+    @ExceptionHandler(CategoryNotFoundByNameException.class)
+    public ResponseEntity<Object> handeCategoryNotFoundByName(CategoryNotFoundByNameException ex) {
+        log.info("Category Not Found by Name exception occurred");
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
+        problemDetail.setType(URI.create("urn:problem-type:resource-not-found"));
+        problemDetail.setTitle("Category by this name not found");
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(problemDetail);
+    }
+
     @ExceptionHandler(EmailAlreadyExistsException.class)
     public ResponseEntity<Object> handeEmailAlreadyExists(EmailAlreadyExistsException ex) {
         log.info("Email Already Exists exception occurred");
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
         problemDetail.setType(URI.create("urn:problem-type:conflict-error"));
         problemDetail.setTitle("Email Already Exists");
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(problemDetail);
+    }
+
+    @ExceptionHandler(CategoryAlreadyExistsException.class)
+    public ResponseEntity<Object> handeCategoryAlreadyExists(CategoryAlreadyExistsException ex) {
+        log.info("Category Already Exists exception occurred");
+        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+        problemDetail.setType(URI.create("urn:problem-type:conflict-error"));
+        problemDetail.setTitle("Category Already Exists");
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(problemDetail);

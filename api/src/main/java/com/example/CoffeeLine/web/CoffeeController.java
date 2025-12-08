@@ -5,6 +5,7 @@ import com.example.CoffeeLine.dto.coffee.CoffeeRequestDto;
 import com.example.CoffeeLine.dto.coffee.CoffeeResponseDto;
 import com.example.CoffeeLine.dto.coffee.CoffeeUpdateRequestDto;
 import com.example.CoffeeLine.service.CoffeeService;
+import com.example.CoffeeLine.service.command.UpdateCoffeeCommand;
 import com.example.CoffeeLine.web.mapper.CoffeeMapper;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -204,12 +205,24 @@ public class CoffeeController {
                     )
             )
     })
-    @PutMapping
-    public ResponseEntity<Object> updateCoffee(@Valid @RequestBody CoffeeUpdateRequestDto coffeeUpdateRequestDto) {
+    @PutMapping("/{id}")
+    public ResponseEntity<Object> updateCoffee(
+            @Valid @RequestBody CoffeeUpdateRequestDto request,
+            @PathVariable UUID id
+    ) {
+        UpdateCoffeeCommand command = new UpdateCoffeeCommand(
+                id,
+                request.getName(),
+                request.getDescription(),
+                request.getPrice(),
+                request.getImageUrl(),
+                request.getCategoryId()
+        );
+
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(coffeeMapper.toCoffeeResponseDto(
-                        coffeeService.updateCoffee(coffeeUpdateRequestDto)));
+                        coffeeService.updateCoffee(command)));
     }
 
     @Operation(summary = "Delete coffee by ID (ADMIN)")

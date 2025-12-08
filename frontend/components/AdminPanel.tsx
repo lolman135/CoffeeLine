@@ -1,30 +1,17 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Plus, Pencil, Trash2, X } from 'lucide-react';
+import { LogOut, Plus, Trash2, X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { useOrders } from '../contexts/OrdersContext';
 import { useDrinks } from '../contexts/DrinksContext';
 import { Drink } from '../data/drinks';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import svgPaths from "../imports/svg-k4b1fjq95c";
-import imgEspresso from '../src/imgEspresso.jpg';
-import imgCappuccino from '../src/imgCappuccino.jpg';
-import imgLatte from '../src/imgLatte.jpeg';
-import imgAmericano from '../src/imgAmericano.jpg';
-import imgIcedLatte from '../src/imgIcedLatte.jpg';
-import imgRaf from '../src/imgRaf.jpg';
-import { getAllOrders } from '../src/api/orders';
+import { getAllOrders, OrderDto } from '../src/api/orders';
 import { apiFetch } from '../src/api/client';
+import { createCoffee, updateCoffee, CoffeeUpdateRequestDto } from '../src/api/coffees';
+import { getCategoryByName } from '../src/api/categories';
 
 // Маппінг ID напоїв до імпортованих картинок
-const drinkImages: Record<string, string> = {
-  '1': imgEspresso,
-  '2': imgCappuccino,
-  '3': imgLatte,
-  '4': imgAmericano,
-  '5': imgIcedLatte,
-  '6': imgRaf,
-};
 
 function CoffeeLogo() {
   return (
@@ -76,27 +63,46 @@ function Header() {
 }
 
 // Статистика Tab
-function StatisticsTab() {
-  const { orders } = useOrders();
+function StatisticsTab({ statsOrders }: { statsOrders: OrderDto[] }) {
+  // Transform backend orders into lightweight shape the charts can use
+  const orders = statsOrders.map(o => ({
+    createdAt: o.createdAt,
+    total: o.totalCost ?? 0,
+    status: o.status as string,
+    items: (o.items || []).map(it => ({ name: (it as any).name || 'Кава', quantity: it.quantity })),
+  }));
 
-  // Обчислення статистики
   const stats = useMemo(() => {
-    const today = new Date().toLocaleDateString('uk-UA');
-    
-    // Статистика за сьогодні
-    const todayOrders = orders.filter(o => o.date === today);
-    
-    const todayRevenue = todayOrders
-      .filter(o => o.status === 'completed')
-      .reduce((sum, o) => sum + o.total, 0);
-    
-    const todayTotal = todayOrders.length;
-    const todayCompleted = todayOrders.filter(o => o.status === 'completed').length;
-    const activeOrders = orders.filter(o => 
-      o.status === 'pending' || o.status === 'preparing' || o.status === 'ready'
-    ).length;
+    const fmtDate = (iso?: string) => {
+      if (!iso) return '';
+      const normalized = iso.replace(/(\.\d{3})\d+$/, '$1');
+      let d = new Date(normalized);
+      if (isNaN(d.getTime())) {
+        d = new Date(normalized.endsWith('Z') ? normalized : normalized + 'Z');
+        if (isNaN(d.getTime())) return '';
+      }
+      return d.toLocaleDateString('uk-UA');
+    };
 
-    // Продажі за останні 7 днів
+    const round = (num: number, decimals: number = 2) =>
+        Math.round(num * Math.pow(10, decimals)) / Math.pow(10, decimals);
+    // ALL-TIME totals (status-dependent revenue)
+    const totalOrders = orders.length; // all orders, independent of status
+
+    const totalRevenue = round(
+        orders
+            .filter(o => o.status === 'COMPLETED')
+            .reduce((sum, o) => sum + (o.total || 0), 0)
+        , 2
+    );
+
+
+
+    // Keep completed count and active count all-time
+    const completedCount = orders.filter(o => o.status === 'COMPLETED').length;
+    const activeOrders = orders.filter(o => ['CREATED', 'PROCESSING', 'READY'].includes(o.status)).length;
+
+    // Last 7 days for sales (optional charts remain as-is)
     const last7Days = Array.from({ length: 7 }, (_, i) => {
       const date = new Date();
       date.setDate(date.getDate() - (6 - i));
@@ -105,97 +111,60 @@ function StatisticsTab() {
 
     const salesData = last7Days.map(date => {
       const dateStr = date.toLocaleDateString('uk-UA');
-      const dayOrders = orders.filter(o => o.date === dateStr && o.status === 'completed');
-      const revenue = dayOrders.reduce((sum, o) => sum + o.total, 0);
-      return {
-        date: `${date.getDate()}.${date.getMonth() + 1}`,
-        revenue
-      };
+      const dayOrders = orders.filter(o => fmtDate(o.createdAt) === dateStr);
+      const revenue = dayOrders.reduce((sum, o) => sum + (o.total || 0), 0);
+      return { date: `${date.getDate()}.${date.getMonth() + 1}`, revenue };
     });
 
-    // Популярні товари за останні 7 днів
+    // Popular drinks in last 7 days
     const drinkCounts: Record<string, number> = {};
     const weekAgo = new Date();
     weekAgo.setDate(weekAgo.getDate() - 7);
-    const weekAgoStr = weekAgo.toLocaleDateString('uk-UA');
-    
-    const last7DaysOrders = orders.filter(o => {
-      // Порівнюємо дати як рядки
-      const orderDateParts = o.date.split('.');
-      const weekAgoDateParts = weekAgoStr.split('.');
-      
-      if (orderDateParts.length === 3 && weekAgoDateParts.length === 3) {
-        const orderDate = new Date(
-          parseInt(orderDateParts[2]),
-          parseInt(orderDateParts[1]) - 1,
-          parseInt(orderDateParts[0])
-        );
-        return orderDate >= weekAgo;
+
+    orders.forEach(o => {
+      const dStr = fmtDate(o.createdAt);
+      const parts = dStr.split('.');
+      if (parts.length === 3) {
+        const d = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+        if (d >= weekAgo) {
+          o.items.forEach(it => {
+            drinkCounts[it.name] = (drinkCounts[it.name] || 0) + it.quantity;
+          });
+        }
       }
-      return false;
     });
-    
-    last7DaysOrders.forEach(order => {
-      order.items.forEach(item => {
-        drinkCounts[item.name] = (drinkCounts[item.name] || 0) + item.quantity;
-      });
-    });
-    
+
     const popularDrinks = Object.entries(drinkCounts)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 5)
       .map(([name, count]) => ({ name, count }));
 
-    // Розподіл замовлень за статусами (за сьогодні)
+    // Status distribution for last day remains, but we can show all-time distribution if needed
+
     const statusDistribution = [
-      { 
-        name: 'Очікує', 
-        value: todayOrders.filter(o => o.status === 'pending').length,
-        color: '#F59E0B'
-      },
-      { 
-        name: 'Готується', 
-        value: todayOrders.filter(o => o.status === 'preparing').length,
-        color: '#3B82F6'
-      },
-      { 
-        name: 'Готово', 
-        value: todayOrders.filter(o => o.status === 'ready').length,
-        color: '#10B981'
-      },
-      { 
-        name: 'Завершено', 
-        value: todayCompleted,
-        color: '#8B5CF6'
-      },
-      { 
-        name: 'Скасовано', 
-        value: todayOrders.filter(o => o.status === 'cancelled').length,
-        color: '#EF4444'
-      },
+      { name: 'Очікує', value: orders.filter(o => o.status === 'CREATED').length, color: '#F59E0B' },
+      { name: 'Готується', value: orders.filter(o => o.status === 'PROCESSING').length, color: '#3B82F6' },
+      { name: 'Готово', value: orders.filter(o => o.status === 'COMPLETED').length, color: '#10B981' },
+      { name: 'Скасовано', value: orders.filter(o => o.status === 'CANCELLED').length, color: '#EF4444' },
     ].filter(item => item.value > 0);
 
-    // Кількість замовлень за 7 днів
     const ordersCount = last7Days.map(date => {
       const dateStr = date.toLocaleDateString('uk-UA');
-      const count = orders.filter(o => o.date === dateStr).length;
-      return {
-        date: `${date.getDate()}.${date.getMonth() + 1}`,
-        count
-      };
+      const count = orders.filter(o => fmtDate(o.createdAt) === dateStr).length;
+      return { date: `${date.getDate()}.${date.getMonth() + 1}`, count };
     });
 
     return {
-      todayRevenue,
-      todayTotal,
-      todayCompleted,
+      todayRevenue: totalRevenue, // show ALL-TIME revenue for COMPLETED orders
+      todayTotal: totalOrders,    // show ALL-TIME orders count
+      todayCompleted: completedCount,
       activeOrders,
       salesData,
       popularDrinks,
       statusDistribution,
       ordersCount
     };
-  }, [orders]);
+  }, [statsOrders]);
 
   return (
     <div className="space-y-6">
@@ -265,18 +234,18 @@ function StatisticsTab() {
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={stats.salesData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-              <XAxis 
-                dataKey="date" 
+              <XAxis
+                dataKey="date"
                 tick={{ fontSize: 12, fill: '#6B7280' }}
                 axisLine={{ stroke: '#E5E7EB' }}
               />
-              <YAxis 
+              <YAxis
                 tick={{ fontSize: 12, fill: '#6B7280' }}
                 axisLine={{ stroke: '#E5E7EB' }}
               />
-              <Tooltip 
-                contentStyle={{ 
-                  backgroundColor: 'white', 
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: 'white',
                   border: '1px solid #E5E7EB',
                   borderRadius: '6px'
                 }}
@@ -295,18 +264,18 @@ function StatisticsTab() {
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={stats.popularDrinks}>
               <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-              <XAxis 
-                dataKey="name" 
+              <XAxis
+                dataKey="name"
                 tick={{ fontSize: 12, fill: '#6B7280' }}
                 axisLine={{ stroke: '#E5E7EB' }}
               />
-              <YAxis 
+              <YAxis
                 tick={{ fontSize: 12, fill: '#6B7280' }}
                 axisLine={{ stroke: '#E5E7EB' }}
               />
-              <Tooltip 
-                contentStyle={{ 
-                  backgroundColor: 'white', 
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: 'white',
                   border: '1px solid #E5E7EB',
                   borderRadius: '6px'
                 }}
@@ -330,8 +299,8 @@ function StatisticsTab() {
               <div className="space-y-3 flex-shrink-0">
                 {stats.statusDistribution.map((item, index) => (
                   <div key={index} className="flex items-center gap-2">
-                    <div 
-                      className="w-[12px] h-[12px] rounded-full flex-shrink-0" 
+                    <div
+                      className="w-[12px] h-[12px] rounded-full flex-shrink-0"
                       style={{ backgroundColor: item.color }}
                     />
                     <span className="font-['Inter:Regular',sans-serif] text-[14px] text-zinc-600 whitespace-nowrap">
@@ -340,7 +309,7 @@ function StatisticsTab() {
                   </div>
                 ))}
               </div>
-              
+
               {/* Діаграма праворуч */}
               <div className="flex-1 flex items-center justify-center">
                 <ResponsiveContainer width="100%" height={220}>
@@ -377,18 +346,18 @@ function StatisticsTab() {
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={stats.ordersCount}>
               <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-              <XAxis 
-                dataKey="date" 
+              <XAxis
+                dataKey="date"
                 tick={{ fontSize: 12, fill: '#6B7280' }}
                 axisLine={{ stroke: '#E5E7EB' }}
               />
-              <YAxis 
+              <YAxis
                 tick={{ fontSize: 12, fill: '#6B7280' }}
                 axisLine={{ stroke: '#E5E7EB' }}
               />
-              <Tooltip 
-                contentStyle={{ 
-                  backgroundColor: 'white', 
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: 'white',
                   border: '1px solid #E5E7EB',
                   borderRadius: '6px'
                 }}
@@ -460,6 +429,16 @@ function MenuTab() {
   const [priceLarge, setPriceLarge] = useState('0');
   const [selectedAddons, setSelectedAddons] = useState<string[]>([]);
 
+  // Edit state for backend update integration
+  const [editById, setEditById] = useState<Record<string, CoffeeUpdateRequestDto>>({});
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const [saveErrorById, setSaveErrorById] = useState<Record<string, string>>({});
+  const [categoryChoiceById, setCategoryChoiceById] = useState<Record<string, 'Hot' | 'Cold' | ''>>({});
+
+  // Creation form state (category and price) used in the Add Drink modal
+  const [newCategoryChoice, setNewCategoryChoice] = useState<'Hot' | 'Cold' | ''>('');
+  const [newPrice, setNewPrice] = useState<string>('');
+
   const openAddForm = () => {
     setEditingDrink(null);
     setFormData({
@@ -482,68 +461,54 @@ function MenuTab() {
     setIsFormOpen(true);
   };
 
-  const openEditForm = (drink: Drink) => {
-    setEditingDrink(drink);
-    setFormData(drink);
-    
-    // Заповнюємо поля розмірів
-    if (drink.sizes.length >= 3) {
-      setVolumeSmall(drink.sizes[0].volume.replace('мл', ''));
-      setVolumeMedium(drink.sizes[1].volume.replace('мл', ''));
-      setVolumeLarge(drink.sizes[2].volume.replace('мл', ''));
-      setPriceSmall(drink.sizes[0].price.toString());
-      setPriceMedium(drink.sizes[1].price.toString());
-      setPriceLarge(drink.sizes[2].price.toString());
-    }
-    
-    setSelectedAddons(drink.addons.map(a => a.id));
-    setIsFormOpen(true);
-  };
-
   const closeForm = () => {
     setIsFormOpen(false);
     setEditingDrink(null);
   };
 
-  const handleSubmit = () => {
-    if (!formData.name || !formData.description) {
-      alert('Будь ласка, заповніть всі обов\'язкові поля');
+  const handleSubmit = async () => {
+    // Validate required fields
+    if (!formData.name || formData.name.trim().length < 2) {
+      alert('Назва повинна містити мінімум 2 символи');
+      return;
+    }
+    if (!formData.description || !formData.description.trim()) {
+      alert('Опис є обов\'язковим');
+      return;
+    }
+    if (!formData.image || !formData.image.trim()) {
+      alert('URL зображення є обов\'язковим');
       return;
     }
 
-    const smallPrice = Number(priceSmall);
-    const mediumPrice = Number(priceMedium);
-    const largePrice = Number(priceLarge);
-
-    if (smallPrice <= 0 || mediumPrice <= 0 || largePrice <= 0) {
-      alert('Будь ласка, вкажіть ціни для всіх розмірів');
+    const priceNum = Number(newPrice);
+    if (!Number.isFinite(priceNum) || priceNum < 1) {
+      alert('Ціна повинна бути \u2265 1');
       return;
     }
 
-    // Формуємо sizes
-    const sizes = [
-      { id: 'small', name: 'Малий', volume: `${volumeSmall}мл`, price: smallPrice },
-      { id: 'medium', name: 'Середній', volume: `${volumeMedium}мл`, price: mediumPrice },
-      { id: 'large', name: 'Великий', volume: `${volumeLarge}мл`, price: largePrice },
-    ];
-
-    // Формуємо addons
-    const addons = standardAddons.filter(addon => selectedAddons.includes(addon.id));
-
-    const drinkData = {
-      ...formData,
-      basePrice: smallPrice,
-      price: smallPrice,
-      sizes,
-      addons,
-    };
-
-    if (editingDrink) {
-      updateDrink(editingDrink.id, drinkData as Drink);
-    } else {
-      addDrink(drinkData as Drink);
+    if (newCategoryChoice !== 'Hot' && newCategoryChoice !== 'Cold') {
+      alert('Оберіть категорію: Гаряча або Холодна');
+      return;
     }
-    closeForm();
+
+    try {
+      // Resolve category by name → UUID
+      const category = await getCategoryByName(newCategoryChoice);
+      // Compose CoffeeRequestDto
+      const payload = {
+        name: formData.name.trim(),
+        description: formData.description.trim(),
+        imageUrl: formData.image.trim(),
+        price: priceNum,
+        categoryId: category.id,
+      };
+      // POST /api/v1/coffees
+      await createCoffee(payload as any);
+      setIsFormOpen(false);
+    } catch (e: any) {
+      alert(e?.message || 'Не вдалося створити напій');
+    }
   };
 
   const handleDelete = (id: string) => {
@@ -557,6 +522,40 @@ function MenuTab() {
       setSelectedAddons(selectedAddons.filter(id => id !== addonId));
     } else {
       setSelectedAddons([...selectedAddons, addonId]);
+    }
+  };
+
+  const setEditField = (id: string, field: keyof CoffeeUpdateRequestDto, value: string) => {
+    setEditById(prev => ({
+      ...prev,
+      [id]: {
+        ...(prev[id] || {}),
+        [field]: field === 'price' ? (value ? Number(value) : undefined) : (value || undefined),
+      }
+    }));
+  };
+
+  const saveUpdate = async (id: string) => {
+    const dto = { ...(editById[id] || {}) };
+    setSavingId(id);
+    setSaveErrorById(prev => ({ ...prev, [id]: '' }));
+    try {
+      // If admin selected category by name, resolve it to UUID
+      const choice = categoryChoiceById[id];
+      if (choice === 'Hot' || choice === 'Cold') {
+        const category = await getCategoryByName(choice);
+        dto.categoryId = category.id;
+      }
+      const updated = await updateCoffee(id, dto);
+      // Reflect changes locally in UI if drinks context holds admin menu items
+      setFormData(prev => ({ ...prev, name: updated.name, description: updated.description, basePrice: updated.price || prev.basePrice, image: updated.imageUrl || prev.image }));
+      // Clear edit state for this card
+      setEditById(prev => { const copy = { ...prev }; delete copy[id]; return copy; });
+      setCategoryChoiceById(prev => { const copy = { ...prev }; delete copy[id]; return copy; });
+    } catch (e: any) {
+      setSaveErrorById(prev => ({ ...prev, [id]: e?.message || 'Помилка оновлення' }));
+    } finally {
+      setSavingId(null);
     }
   };
 
@@ -578,41 +577,73 @@ function MenuTab() {
       {/* Drinks Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {drinks.map((drink) => (
-          <div
-            key={drink.id}
-            className="bg-white rounded-[8px] border border-zinc-200 shadow-[0px_1px_2px_-1px_rgba(0,0,0,0.1),0px_1px_3px_0px_rgba(0,0,0,0.1)] overflow-hidden flex flex-col"
-          >
-            <img src={drinkImages[drink.id] || drink.image} alt={drink.name} className="w-full h-48 object-cover" />
-            <div className="p-4 flex flex-col flex-1">
-              <h3 className="font-['Inter:Semi_Bold',sans-serif] font-semibold text-[16px] text-black mb-1">
-                {drink.name}
-              </h3>
-              <p className="font-['Inter:Regular',sans-serif] text-[14px] text-zinc-500 mb-2 line-clamp-2 flex-1">
-                {drink.description}
-              </p>
-              <p className="font-['Inter:Semi_Bold',sans-serif] font-semibold text-[18px] text-[darkorange] mb-4">
-                від {drink.basePrice} ₴
-              </p>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => openEditForm(drink)}
-                  className="flex-1 bg-blue-600 h-[32px] rounded-[6px] hover:bg-blue-700 transition-colors flex items-center justify-center gap-1"
+          <div key={drink.id} className="bg-white rounded-[12px] border border-neutral-200 shadow p-4 flex flex-col">
+            {/* Preview */}
+            <div className="aspect-square rounded-[8px] overflow-hidden mb-3">
+              <img src={drink.image} alt={drink.name} className="w-full h-full object-cover" />
+            </div>
+            <h3 className="font-['Inter:Semi_Bold',sans-serif] font-semibold text-[16px] text-black mb-2">{drink.name}</h3>
+            <p className="text-[14px] text-zinc-600 mb-3 line-clamp-2">{drink.description}</p>
+
+            {/* Backend edit controls (CoffeeUpdateRequestDto) */}
+            <div className="space-y-2 mb-3">
+              <input
+                className="w-full border rounded px-3 h-9"
+                placeholder="Назва"
+                defaultValue={drink.name}
+                onChange={(e) => setEditField(drink.id, 'name', e.target.value)}
+              />
+              <textarea
+                className="w-full border rounded px-3 h-20"
+                placeholder="Опис"
+                defaultValue={drink.description}
+                onChange={(e) => setEditField(drink.id, 'description', e.target.value)}
+              />
+              <input
+                type="number"
+                step="0.01"
+                min={1}
+                className="w-full border rounded px-3 h-9"
+                placeholder="Ціна (≥1)"
+                defaultValue={String(drink.basePrice || 0)}
+                onChange={(e) => setEditField(drink.id, 'price', e.target.value)}
+              />
+              <input
+                className="w-full border rounded px-3 h-9"
+                placeholder="URL зображення"
+                defaultValue={drink.image}
+                onChange={(e) => setEditField(drink.id, 'imageUrl', e.target.value)}
+              />
+              <div className="flex items-center gap-2">
+                <select
+                  className="w-full border rounded px-3 h-9"
+                  value={categoryChoiceById[drink.id] || ''}
+                  onChange={(e) => setCategoryChoiceById(prev => ({ ...prev, [drink.id]: (e.target.value as 'Hot' | 'Cold' | '') }))}
                 >
-                  <Pencil className="w-4 h-4 text-white" />
-                  <span className="font-['Inter:Medium',sans-serif] font-medium text-[12px] text-white">
-                    Редагувати
-                  </span>
-                </button>
-                <button
-                  onClick={() => handleDelete(drink.id)}
-                  className="flex-1 bg-red-600 h-[32px] rounded-[6px] hover:bg-red-700 transition-colors flex items-center justify-center gap-1"
-                >
-                  <Trash2 className="w-4 h-4 text-white" />
-                  <span className="font-['Inter:Medium',sans-serif] font-medium text-[12px] text-white">
-                    Видалити
-                  </span>
-                </button>
+                  <option value="">Категорія (не змінювати)</option>
+                  <option value="Hot">Гаряча</option>
+                  <option value="Cold">Холодна</option>
+                </select>
               </div>
+              {saveErrorById[drink.id] && (
+                <p className="text-red-600 text-sm">{saveErrorById[drink.id]}</p>
+              )}
+            </div>
+            <div className="flex gap-2 mt-auto">
+              <button
+                onClick={() => saveUpdate(drink.id)}
+                disabled={savingId === drink.id}
+                className="bg-[darkorange] text-white h-[32px] px-4 rounded-[6px] hover:bg-[#ff9500] disabled:opacity-60"
+              >
+                {savingId === drink.id ? 'Збереження...' : 'Зберегти'}
+              </button>
+              <button
+                onClick={() => handleDelete(drink.id)}
+                className="border h-[32px] px-3 rounded-[6px]"
+                title="Видалити"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
             </div>
           </div>
         ))}
@@ -662,126 +693,49 @@ function MenuTab() {
                 />
               </div>
 
-              {/* Category */}
+              {/* Category by name */}
               <div>
                 <label className="block font-['Inter:Medium',sans-serif] font-medium text-[14px] text-black mb-2">
                   Категорія *
                 </label>
                 <select
-                  value={formData.category}
-                  onChange={(e) => setFormData({ ...formData, category: e.target.value as 'hot' | 'cold' })}
+                  value={newCategoryChoice}
+                  onChange={(e) => setNewCategoryChoice(e.target.value as 'Hot' | 'Cold' | '')}
                   className="w-full h-[42px] px-4 bg-neutral-100 rounded-[8px] border border-[#dddddd] font-['Inter:Regular',sans-serif] text-[16px] text-black outline-none"
                 >
-                  <option value="hot">Гаряче</option>
-                  <option value="cold">Холодне</option>
+                  <option value="">Оберіть категорію</option>
+                  <option value="Hot">Гаряча</option>
+                  <option value="Cold">Холодна</option>
                 </select>
               </div>
 
-              {/* Sizes */}
+              {/* Price */}
               <div>
                 <label className="block font-['Inter:Medium',sans-serif] font-medium text-[14px] text-black mb-2">
-                  Розміри та ціни *
+                  Ціна *
                 </label>
-                <div className="space-y-3">
-                  <div className="flex items-center gap-3">
-                    <span className="font-['Inter:Regular',sans-serif] text-[14px] text-black w-[80px]">Малий:</span>
-                    <input
-                      type="number"
-                      value={volumeSmall}
-                      onChange={(e) => setVolumeSmall(e.target.value)}
-                      className="w-[80px] h-[36px] px-3 bg-neutral-100 rounded-[6px] border border-[#dddddd] font-['Inter:Regular',sans-serif] text-[14px] text-black outline-none"
-                      placeholder="250"
-                      min="0"
-                    />
-                    <span className="font-['Inter:Regular',sans-serif] text-[14px] text-zinc-500">мл</span>
-                    <input
-                      type="number"
-                      value={priceSmall}
-                      onChange={(e) => setPriceSmall(e.target.value)}
-                      className="w-[80px] h-[36px] px-3 bg-neutral-100 rounded-[6px] border border-[#dddddd] font-['Inter:Regular',sans-serif] text-[14px] text-black outline-none"
-                      placeholder="45"
-                      min="0"
-                    />
-                    <span className="font-['Inter:Regular',sans-serif] text-[14px] text-zinc-500">₴</span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="font-['Inter:Regular',sans-serif] text-[14px] text-black w-[80px]">Середній:</span>
-                    <input
-                      type="number"
-                      value={volumeMedium}
-                      onChange={(e) => setVolumeMedium(e.target.value)}
-                      className="w-[80px] h-[36px] px-3 bg-neutral-100 rounded-[6px] border border-[#dddddd] font-['Inter:Regular',sans-serif] text-[14px] text-black outline-none"
-                      placeholder="350"
-                      min="0"
-                    />
-                    <span className="font-['Inter:Regular',sans-serif] text-[14px] text-zinc-500">мл</span>
-                    <input
-                      type="number"
-                      value={priceMedium}
-                      onChange={(e) => setPriceMedium(e.target.value)}
-                      className="w-[80px] h-[36px] px-3 bg-neutral-100 rounded-[6px] border border-[#dddddd] font-['Inter:Regular',sans-serif] text-[14px] text-black outline-none"
-                      placeholder="65"
-                      min="0"
-                    />
-                    <span className="font-['Inter:Regular',sans-serif] text-[14px] text-zinc-500">₴</span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="font-['Inter:Regular',sans-serif] text-[14px] text-black w-[80px]">Великий:</span>
-                    <input
-                      type="number"
-                      value={volumeLarge}
-                      onChange={(e) => setVolumeLarge(e.target.value)}
-                      className="w-[80px] h-[36px] px-3 bg-neutral-100 rounded-[6px] border border-[#dddddd] font-['Inter:Regular',sans-serif] text-[14px] text-black outline-none"
-                      placeholder="450"
-                      min="0"
-                    />
-                    <span className="font-['Inter:Regular',sans-serif] text-[14px] text-zinc-500">мл</span>
-                    <input
-                      type="number"
-                      value={priceLarge}
-                      onChange={(e) => setPriceLarge(e.target.value)}
-                      className="w-[80px] h-[36px] px-3 bg-neutral-100 rounded-[6px] border border-[#dddddd] font-['Inter:Regular',sans-serif] text-[14px] text-black outline-none"
-                      placeholder="85"
-                      min="0"
-                    />
-                    <span className="font-['Inter:Regular',sans-serif] text-[14px] text-zinc-500">₴</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Addons */}
-              <div>
-                <label className="block font-['Inter:Medium',sans-serif] font-medium text-[14px] text-black mb-2">
-                  Додатки (оберіть потрібні)
-                </label>
-                <div className="grid grid-cols-1 gap-2">
-                  {standardAddons.map(addon => (
-                    <label key={addon.id} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-2 rounded-[4px]">
-                      <input
-                        type="checkbox"
-                        checked={selectedAddons.includes(addon.id)}
-                        onChange={() => toggleAddon(addon.id)}
-                        className="w-4 h-4 rounded-[4px] border border-zinc-300"
-                      />
-                      <span className="font-['Inter:Regular',sans-serif] text-[14px] text-black">
-                        {addon.name} ({addon.price} ₴)
-                      </span>
-                    </label>
-                  ))}
-                </div>
+                <input
+                  type="number"
+                  min={1}
+                  step="0.01"
+                  value={newPrice}
+                  onChange={(e) => setNewPrice(e.target.value)}
+                  className="w-full h-[42px] px-4 bg-neutral-100 rounded-[8px] border border-[#dddddd] font-['Inter:Regular',sans-serif] text-[16px] text-black outline-none"
+                  placeholder="9.99"
+                />
               </div>
 
               {/* Image URL */}
               <div>
                 <label className="block font-['Inter:Medium',sans-serif] font-medium text-[14px] text-black mb-2">
-                  URL зображення
+                  URL зображення *
                 </label>
                 <input
                   type="text"
                   value={formData.image}
                   onChange={(e) => setFormData({ ...formData, image: e.target.value })}
                   className="w-full h-[42px] px-4 bg-neutral-100 rounded-[8px] border border-[#dddddd] font-['Inter:Regular',sans-serif] text-[16px] text-black outline-none"
-                  placeholder="../src/imgName.jpg"
+                  placeholder="https://..."
                 />
               </div>
             </div>
@@ -811,32 +765,66 @@ function MenuTab() {
   );
 }
 
+function formatOrderDate(iso?: string, locale?: string): string {
+  if (!iso) return '';
+  const normalized = iso.replace(/(\.\d{3})\d+$/, '$1');
+  let d = new Date(normalized);
+  if (isNaN(d.getTime())) {
+    d = new Date(normalized.endsWith('Z') ? normalized : normalized + 'Z');
+    if (isNaN(d.getTime())) return iso;
+  }
+  const loc = locale || (typeof navigator !== 'undefined' ? navigator.language : 'uk-UA');
+  const time = new Intl.DateTimeFormat(loc, { hour: '2-digit', minute: '2-digit', hour12: false }).format(d);
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yyyy = d.getFullYear();
+  return `${time} · ${dd}.${mm}.${yyyy}`;
+}
+
 export default function AdminPanel() {
   const [activeTab, setActiveTab] = useState<'statistics' | 'orders' | 'menu'>('statistics');
-  const [orders, setOrders] = useState<any[]>([]);
+  const [orders, setOrders] = useState<(OrderDto & { userName?: string })[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(0);
+  const [size, setSize] = useState(20);
+  const [totalPages, setTotalPages] = useState(0);
+  const [statsOrders, setStatsOrders] = useState<OrderDto[]>([]);
 
   useEffect(() => {
     setLoading(true);
-    getAllOrders()
-      .then(async (res: any) => {
-        const list = Array.isArray(res) ? res : res.orders;
-        const withNames = await Promise.all(
-          list.map(async (o: any) => {
+    getAllOrders(page, size)
+      .then(async (res) => {
+        const list = res.content;
+        // Resolve user names with a small cache
+        const cache = new Map<string, string>();
+        const withNames = await Promise.all(list.map(async (o) => {
+          let name = cache.get(o.userId);
+          if (!name) {
             try {
-              const user = await apiFetch<any>(`/api/v1/users/${o.userId}`);
-              return { ...o, userName: user?.name || '' };
+              const u = await apiFetch<any>(`/api/v1/users/${o.userId}`);
+              name = u?.name || '';
             } catch {
-              return { ...o, userName: '' };
+              name = '';
             }
-          })
-        );
+            cache.set(o.userId, name ?? '');
+          }
+          const resolvedName: string = name ?? '';
+          return { ...o, userName: resolvedName };
+        }));
         setOrders(withNames);
+        setTotalPages(res.totalPages);
         setError(null);
       })
       .catch((e) => setError(e?.message || 'Не вдалося завантажити замовлення'))
       .finally(() => setLoading(false));
+  }, [activeTab, page, size]);
+
+  useEffect(() => {
+    // Fetch a larger page for statistics once when entering the page
+    getAllOrders(0, 100)
+      .then(res => setStatsOrders(res.content))
+      .catch(() => setStatsOrders([]));
   }, []);
 
   return (
@@ -905,7 +893,7 @@ export default function AdminPanel() {
           </div>
 
           {/* Tab Content */}
-          {activeTab === 'statistics' && <StatisticsTab />}
+          {activeTab === 'statistics' && <StatisticsTab statsOrders={statsOrders} />}
           {activeTab === 'orders' && (
             <div>
               <h1 className="font-['Inter:Semi_Bold',sans-serif] font-semibold text-[#333333] text-[28px] md:text-[32px] mb-6">
@@ -914,14 +902,61 @@ export default function AdminPanel() {
               {loading && <p>Завантаження...</p>}
               {error && <p className="text-red-600">{error}</p>}
               {!loading && !error && (
-                <div className="bg-white rounded-[12px] border border-neutral-200 shadow p-6">
+                <div className="bg-white rounded-[12px] border border-neutral-200 shadow p-6 space-y-4">
                   {orders.map((o) => (
-                    <div key={o.id} className="flex items-center justify-between py-2 border-b last:border-b-0">
-                      <span>#{o.id}</span>
-                      <span>Статус: {o.status}</span>
-                      <span>Користувач: {o.userName || o.userId}</span>
+                    <div key={o.id} className="py-3 border-b last:border-b-0">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-3">
+                          <span className="font-['Inter:Semi_Bold',sans-serif] text-[16px] text-black">#{o.id.substring(0,7)}</span>
+                          <span className="text-zinc-500 text-[14px]">{formatOrderDate(o.createdAt)}</span>
+                        </div>
+                        <div className="text-[14px] text-zinc-700">Користувач: <span className="font-medium">{o.userName || o.userId}</span></div>
+                        <div className="text-[14px] text-zinc-700">Сума: <span className="font-medium">{o.totalCost ?? 0} ₴</span></div>
+                        <div className="text-[14px] text-zinc-700">Статус: <span className="font-medium">{o.status}</span></div>
+                      </div>
+                      <div className="mt-2 text-[14px] text-zinc-700">
+                        {o.items?.length ? (
+                          <div>
+                            {o.items.map((it, idx) => (
+                              <div key={idx} className="flex items-start gap-2">
+                                <span className="text-zinc-400">•</span>
+                                <span>{it.name || 'Кава'}{it.quantity > 1 ? ` x${it.quantity}` : ''}</span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-zinc-400">Без позицій</span>
+                        )}
+                      </div>
                     </div>
                   ))}
+
+                  {/* Simple pager */}
+                  {totalPages > 1 && (
+                    <div className="flex items-center justify-center gap-2 pt-4">
+                      <button
+                        onClick={() => setPage(p => Math.max(0, p-1))}
+                        disabled={page===0}
+                        className="h-[32px] px-4 rounded-[6px] border border-zinc-200 disabled:opacity-50">
+                          Назад
+                      </button>
+                      <span className="text-[14px]">Сторінка {page+1} з {totalPages}</span>
+                      <button
+                        onClick={() => setPage(p => p+1)}
+                        disabled={page+1>=totalPages}
+                        className="h-[32px] px-4 rounded-[6px] border border-zinc-200 disabled:opacity-50"
+                      >Далі</button>
+                      <select
+                        value={size}
+                        onChange={(e) => { setSize(Number(e.target.value)); setPage(0); }}
+                        className="h-[32px] px-2 rounded-[6px] border border-zinc-200"
+                      >
+                        <option value={10}>10</option>
+                        <option value={20}>20</option>
+                        <option value={50}>50</option>
+                      </select>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

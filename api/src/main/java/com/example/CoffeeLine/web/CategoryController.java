@@ -110,6 +110,49 @@ public class CategoryController {
                         categoryService.getCategoryById(categoryId)));
     }
 
+    @Operation(summary = "Get category by name")
+    @ApiResponses(value = {
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Category found",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = CategoryResponseDto.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "Expired JWT",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = ProblemDetail.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "Access denied",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = ProblemDetail.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "Category not found",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = ProblemDetail.class)
+                    )
+            )
+    })
+    @GetMapping("/name/{categoryName}")
+    public ResponseEntity<Object> getCategoryByName(@PathVariable String categoryName) {
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(categoryMapper.toCategoryResponseDto(
+                        categoryService.findCategoryByName(categoryName)));
+    }
+
     @Operation(summary = "Create category (ADMIN)")
     @ApiResponses(value = {
             @ApiResponse(
