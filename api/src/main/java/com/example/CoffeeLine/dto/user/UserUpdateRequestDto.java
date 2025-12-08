@@ -9,12 +9,6 @@ import lombok.Value;
 @Value
 @Schema(description = "Used for updating user information")
 public class UserUpdateRequestDto {
-
-    @Schema(description = "Must be to found user in DB", example = "123e4567-e89b-12d3-a456-426614174000")
-    @NotBlank(message = "is required")
-    @Size(min = 36, max = 36, message = "must be a valid UUID")
-    String id;
-
     @Schema(description = "New user name (not required)")
     @Size(min = 2, max = 50, message = "must be between 2 and 50 characters")
     String name;

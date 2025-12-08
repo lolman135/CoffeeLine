@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import type { Drink } from '../data/drinks';
-import { fetchCoffees } from '../src/api/coffees';
+import { drinks as initialDrinks, Drink } from '../data/drinks';
+import { fetchCoffees } from '@/src/api/coffees';
 
 interface DrinksContextType {
   drinks: Drink[];
@@ -9,36 +9,82 @@ interface DrinksContextType {
   deleteDrink: (id: string) => void;
   resetDrinks: () => void;
   getDrinkById: (id: string) => Drink | undefined;
-  loading: boolean;
-  error: string | null;
+  loading?: boolean;
+  error?: string | null;
 }
 
 const DrinksContext = createContext<DrinksContextType | undefined>(undefined);
 
+const DRINKS_STORAGE_KEY = 'coffee_drinks_cache';
+
 export function DrinksProvider({ children }: { children: ReactNode }) {
   const [drinks, setDrinks] = useState<Drink[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Helper to adapt API coffee DTOs to local Drink shape
+  function adapt(drinksFromApi: { id: string; name: string; description: string; price: number; image?: string; imageUrl?: string; category?: string }[]): Drink[] {
+    return drinksFromApi.map(d => {
+      const rawCat = d.category || '';
+      const catLower = rawCat.toLowerCase();
+      const mappedCat: 'hot' | 'cold' = catLower === 'cold' || catLower === 'холодне' ? 'cold' : 'hot';
+      return {
+        id: d.id,
+        name: d.name,
+        description: d.description,
+        basePrice: d.price,
+        price: d.price,
+        category: mappedCat,
+        rawCategory: rawCat,
+        image: d.image || d.imageUrl || '',
+        sizes: [],
+        addons: [],
+      };
+    });
+  }
+
+  // Helper to build user-facing error message
+  function toErrorMessage(err: unknown): string {
+    if (typeof err === 'object' && err && 'status' in err) {
+      const anyErr = err as { status?: number; message?: string };
+      if (anyErr.status === 401) return 'Потрібна авторизація. Увійдіть, будь ласка.';
+      return anyErr.message || 'Помилка завантаження даних';
+    }
+    return 'Unable to load coffees from server';
+  }
+
+  // Initial load: try API, fall back to cache or bundled data
   useEffect(() => {
-    let isMounted = true;
-    setLoading(true);
-    fetchCoffees()
-      .then((items) => {
-        if (!isMounted) return;
-        setDrinks(items);
-        setError(null);
-      })
-      .catch((e) => {
-        if (!isMounted) return;
-        console.error('Failed to load coffees:', e);
-        setError(typeof e?.message === 'string' ? e.message : 'Failed to load coffees');
-      })
-      .finally(() => {
-        if (!isMounted) return;
-        setLoading(false);
-      });
-    return () => { isMounted = false; };
+    let cancelled = false;
+    async function load() {
+      setLoading(true);
+      setError(null);
+      try {
+        const items = await fetchCoffees();
+        if (!cancelled) {
+          setDrinks(adapt(items as any));
+          try { localStorage.setItem(DRINKS_STORAGE_KEY, JSON.stringify(adapt(items as any))); } catch {}
+        }
+      } catch (e: unknown) {
+        console.error('Failed to fetch coffees from API, using cache or bundled data', e);
+        if (!cancelled) {
+          // Try cache
+          let cached: Drink[] | null;
+          try {
+            const saved = localStorage.getItem(DRINKS_STORAGE_KEY);
+            cached = saved ? JSON.parse(saved) : null;
+          } catch {
+            cached = null;
+          }
+          setDrinks(cached || initialDrinks);
+          setError(toErrorMessage(e));
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    load();
+    return () => { cancelled = true; };
   }, []);
 
   const addDrink = (drink: Drink) => {
@@ -54,11 +100,14 @@ export function DrinksProvider({ children }: { children: ReactNode }) {
   };
 
   const resetDrinks = () => {
-    // Refetch from API
     setLoading(true);
+    setError(null);
     fetchCoffees()
-      .then((items) => { setDrinks(items); setError(null); })
-      .catch((e) => { console.error(e); setError('Failed to reload coffees'); })
+      .then((items) => {
+        setDrinks(adapt(items as any));
+        try { localStorage.setItem(DRINKS_STORAGE_KEY, JSON.stringify(adapt(items as any))); } catch {}
+      })
+      .catch((e: unknown) => { console.error(e); setError(toErrorMessage(e)); })
       .finally(() => setLoading(false));
   };
 

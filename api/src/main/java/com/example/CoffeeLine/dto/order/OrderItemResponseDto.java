@@ -6,5 +6,6 @@ import lombok.Value;
 public class OrderItemResponseDto {
     String id;
     String coffeeId;
+    String name;
     int quantity;
 }

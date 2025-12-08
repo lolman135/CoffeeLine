@@ -1,157 +1,81 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
+import { getAllOrders as apiGetAllOrders, updateOrderStatus as apiUpdateOrderStatus, OrderDto, Page } from '../src/api/orders';
 
 // Types
-export type OrderStatus = 'pending' | 'preparing' | 'ready' | 'completed' | 'cancelled';
+export type OrderStatus = 'CREATED' | 'PROCESSING' | 'READY' | 'COMPLETED' | 'CANCELLED';
 
-export interface OrderItem {
-  name: string;
-  size?: string;
-  quantity: number;
-  additions: string[];
-  price: number;
-}
+export interface OrderItem { quantity: number; name?: string; coffeeId?: string }
 
 export interface Order {
   id: string;
-  customerName: string;
-  phone: string;
-  address?: string;
   items: OrderItem[];
-  deliveryMethod: 'delivery' | 'pickup';
-  paymentMethod: 'cash' | 'card';
-  total: number;
-  time: string;
-  date: string;
   status: OrderStatus;
-  userId?: string; // Для фільтрації замовлень по користувачу
+  userId?: string;
+  total?: number;
+  date?: string;
 }
 
 interface OrdersContextType {
   orders: Order[];
-  addOrder: (order: Omit<Order, 'id' | 'time' | 'date' | 'status'>) => string;
-  updateOrderStatus: (orderId: string, status: OrderStatus) => void;
-  getOrderById: (orderId: string) => Order | undefined;
-  getUserOrders: (userId?: string) => Order[];
+  page: number;
+  size: number;
+  totalPages: number;
+  totalElements: number;
+  refresh: (page?: number, size?: number, status?: OrderStatus) => Promise<void>;
+  updateOrderStatus: (orderId: string, status: OrderStatus) => Promise<void>;
   getActiveOrders: () => Order[];
 }
 
 const OrdersContext = createContext<OrdersContextType | undefined>(undefined);
 
-const ORDERS_STORAGE_KEY = 'coffee_line_orders';
-
 export function OrdersProvider({ children }: { children: ReactNode }) {
   const [orders, setOrders] = useState<Order[]>([]);
+  const [page, setPage] = useState(0);
+  const [size, setSize] = useState(20);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalElements, setTotalElements] = useState(0);
+  const fetchedRef = useRef(false);
 
-  // Завантаження замовлень з localStorage при монтуванні
+  const mapOrderDtoToOrder = (dto: OrderDto): Order => ({
+    id: dto.id,
+    status: dto.status as OrderStatus,
+    userId: dto.userId,
+    items: (dto.items || []).map(i => ({ quantity: i.quantity, name: (i as any).name, coffeeId: (i as any).coffeeId })),
+    total: dto.totalCost,
+    date: dto.createdAt,
+  });
+
+  const refresh = async (p: number = page, s: number = size, status?: OrderStatus) => {
+    const pageData: Page<OrderDto> = await apiGetAllOrders(p, s, status);
+    setOrders(pageData.content.map(mapOrderDtoToOrder));
+    setPage(pageData.number);
+    setSize(pageData.size);
+    setTotalPages(pageData.totalPages);
+    setTotalElements(pageData.totalElements);
+  };
+
   useEffect(() => {
-    const loadOrders = () => {
-      const stored = localStorage.getItem(ORDERS_STORAGE_KEY);
-      if (stored) {
-        try {
-          const parsedOrders = JSON.parse(stored);
-          setOrders(parsedOrders);
-        } catch (error) {
-          console.error('Error loading orders:', error);
-        }
-      }
-    };
-
-    loadOrders();
+    if (fetchedRef.current) return;
+    fetchedRef.current = true;
+    refresh();
   }, []);
 
-  // Збереження замовлень в localStorage при зміні
-  useEffect(() => {
-    if (orders.length > 0 || localStorage.getItem(ORDERS_STORAGE_KEY)) {
-      localStorage.setItem(ORDERS_STORAGE_KEY, JSON.stringify(orders));
-    }
-  }, [orders]);
-
-  // Слухач для синхронізації між вкладками
-  useEffect(() => {
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === ORDERS_STORAGE_KEY && e.newValue) {
-        try {
-          const updatedOrders = JSON.parse(e.newValue);
-          setOrders(updatedOrders);
-        } catch (error) {
-          console.error('Error syncing orders:', error);
-        }
-      }
-    };
-
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
-  }, []);
-
-  // Генерація унікального ID замовлення
-  const generateOrderId = (): string => {
-    const timestamp = Date.now();
-    const random = Math.floor(Math.random() * 1000000);
-    return `CL${timestamp}${random}`.slice(0, 13);
+  const updateOrderStatus = async (orderId: string, status: OrderStatus) => {
+    const updated = await apiUpdateOrderStatus(orderId, status);
+    setOrders(prev => prev.map(o => (o.id === orderId ? { ...o, status: updated.status as OrderStatus } : o)));
   };
 
-  // Додавання нового замовлення
-  const addOrder = (orderData: Omit<Order, 'id' | 'time' | 'date' | 'status'>): string => {
-    const now = new Date();
-    const newOrder: Order = {
-      ...orderData,
-      id: generateOrderId(),
-      time: now.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' }),
-      date: now.toLocaleDateString('uk-UA'),
-      status: 'pending'
-    };
-
-    setOrders(prev => [newOrder, ...prev]);
-    return newOrder.id;
-  };
-
-  // Оновлення статусу замовлення
-  const updateOrderStatus = (orderId: string, status: OrderStatus) => {
-    setOrders(prev =>
-      prev.map(order =>
-        order.id === orderId ? { ...order, status } : order
-      )
-    );
-  };
-
-  // Отримання замовлення по ID
-  const getOrderById = (orderId: string): Order | undefined => {
-    return orders.find(order => order.id === orderId);
-  };
-
-  // Отримання замовлень користувача
-  const getUserOrders = (userId?: string): Order[] => {
-    if (!userId) return [];
-    return orders.filter(order => order.userId === userId);
-  };
-
-  // Отримання активних замовлень (для касира)
-  const getActiveOrders = (): Order[] => {
-    return orders.filter(order =>
-      order.status === 'pending' || order.status === 'preparing' || order.status === 'ready'
-    );
-  };
+  const getActiveOrders = (): Order[] => orders.filter(o => ['CREATED', 'PROCESSING', 'READY'].includes(o.status));
 
   return (
-    <OrdersContext.Provider
-      value={{
-        orders,
-        addOrder,
-        updateOrderStatus,
-        getOrderById,
-        getUserOrders,
-        getActiveOrders
-      }}
-    >
+    <OrdersContext.Provider value={{ orders, page, size, totalPages, totalElements, refresh, updateOrderStatus, getActiveOrders }}>
       {children}
     </OrdersContext.Provider>
   );
 }
 
 export function useOrders() {
-  const context = useContext(OrdersContext);
-  if (context === undefined) {
-    throw new Error('useOrders must be used within an OrdersProvider');
-  }
-  return context;
+  const ctx = useContext(OrdersContext);
+  if (!ctx) throw new Error('useOrders must be used within an OrdersProvider');
+  return ctx;
 }

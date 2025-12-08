@@ -4,16 +4,18 @@ import Header from './Header';
 import { ArrowLeft } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { updateMe } from '../src/api/auth';
+import type { ApiError } from '../src/api/client';
 
 export default function ProfilePage() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [activeTab, setActiveTab] = useState<'profile' | 'orders'>('profile');
   const [isEdited, setIsEdited] = useState(false);
   const [saving, setSaving] = useState<boolean>(false);
+  const [password, setPassword] = useState('');
 
   useEffect(() => {
     if (user) {
@@ -28,11 +30,33 @@ export default function ProfilePage() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await updateMe({ name: fullName, phoneNumber: phone });
+      const payload: Record<string, any> = {};
+
+      // Only include changed fields
+      if (fullName && fullName !== (user?.name || '')) payload.name = fullName;
+
+      const digits = phone.replace(/\D/g, '');
+      const normalizedPhone = digits ? (digits.startsWith('0') ? digits.slice(0, 10) : ('0' + digits).slice(0, 10)) : '';
+      if (normalizedPhone && normalizedPhone !== (user?.phoneNumber || '')) payload.phoneNumber = normalizedPhone;
+
+      if (password) payload.password = password;
+
+      if (Object.keys(payload).length === 0) {
+        setIsEdited(false);
+        alert('Немає змін для збереження');
+        return;
+      }
+
+      await updateMe(payload);
+      await refreshUser();
       setIsEdited(false);
       alert('Зміни успішно збережено!');
-    } catch (e) {
-      alert('Не вдалося зберегти зміни');
+    } catch (e: any) {
+      const err: ApiError | undefined = e;
+      const msg = err?.details && typeof err.details === 'object'
+        ? ((err.details as any).detail || (err.details as any).message || err.message)
+        : err?.message || 'Не вдалося зберегти зміни';
+      alert(String(msg || 'Не вдалося зберегти зміни'));
     } finally {
       setSaving(false);
     }
@@ -212,10 +236,26 @@ export default function ProfilePage() {
                     </div>
                   </div>
 
+                  {/* Password Field (optional) */}
+                  <div className="mb-8">
+                    <label className="block font-['Inter:Medium',sans-serif] font-medium text-[#333333] text-[14px] mb-2">
+                      Новий пароль (необов'язково)
+                    </label>
+                    <div className="relative bg-neutral-100 h-[50px] rounded-[8px] border border-[#dddddd]">
+                      <input
+                        type="password"
+                        value={password}
+                        onChange={(e) => { setPassword(e.target.value); handleChange(); }}
+                        placeholder="Введіть новий пароль"
+                        className="w-full h-full px-4 bg-transparent font-['Inter:Regular',sans-serif] font-normal text-[16px] text-[#333333] placeholder:text-[rgba(51,51,51,0.7)] outline-none border-none rounded-[8px]"
+                      />
+                    </div>
+                  </div>
+
                   {/* Save Button */}
                   <button 
                     onClick={handleSave}
-                    disabled={!isEdited}
+                    disabled={!isEdited || saving}
                     className={`w-full h-[48px] rounded-[8px] transition-all flex items-center justify-center ${
                       isEdited 
                         ? 'bg-gradient-to-b from-[#ff8c00] to-[#ffa500] shadow-[0px_4px_6px_-4px_rgba(255,140,0,0.2),0px_10px_15px_-3px_rgba(255,140,0,0.2)] cursor-pointer hover:from-[#ff9500] hover:to-[#ffb000]' 
@@ -223,7 +263,7 @@ export default function ProfilePage() {
                     }`}
                   >
                     <p className="font-['Inter:Semi_Bold',sans-serif] font-semibold text-[16px] text-center text-white">
-                      {isEdited ? 'Зберегти зміни' : 'Немає змін'}
+                      {saving ? 'Зберігаємо...' : (isEdited ? 'Зберегти зміни' : 'Немає змін')}
                     </p>
                   </button>
 
@@ -254,13 +294,13 @@ export default function ProfilePage() {
                         const statusConfig = getStatusColor(order.status);
                         return (
                           <div 
-                            key={order.id} 
+                            key={order.id}
                             className="p-4 border border-gray-200 rounded-[8px] hover:border-[darkorange] transition-colors"
                           >
                             <div className="flex justify-between items-start mb-2">
                               <div>
                                 <p className="font-['Inter:Semi_Bold',sans-serif] font-semibold text-[16px] text-[#333333]">
-                                  Замовлення #{order.id}
+                                  Замовлення №{order.id.substring(0, 7)}
                                 </p>
                                 <p className="font-['Inter:Regular',sans-serif] text-[12px] text-[#666666] mt-1">
                                   {order.date} {order.time}

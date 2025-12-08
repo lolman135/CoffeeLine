@@ -5,6 +5,7 @@ import com.example.CoffeeLine.domain.User;
 import com.example.CoffeeLine.dto.user.ChangeUserRoleRequestDto;
 import com.example.CoffeeLine.dto.user.UserUpdateRequestDto;
 import com.example.CoffeeLine.service.UserService;
+import com.example.CoffeeLine.service.command.UpdateUserCommand;
 import com.example.CoffeeLine.service.exception.EmailAlreadyExistsException;
 import com.example.CoffeeLine.service.exception.UserNotFoundException;
 import com.example.CoffeeLine.service.repository.UserRepository;
@@ -52,17 +53,17 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public User updateUser(UserUpdateRequestDto userUpdateRequestDto) {
-        User user = getUserById(UUID.fromString(userUpdateRequestDto.getId()));
-        if (userUpdateRequestDto.getName() != null) {
-            user.setName(userUpdateRequestDto.getName());
+    public User updateUser(UpdateUserCommand command) {
+        User user = getUserById(command.id());
+        if (command.name() != null) {
+            user.setName(command.name());
         }
-        if (userUpdateRequestDto.getPhoneNumber() != null) {
-            user.setPhoneNumber(userUpdateRequestDto.getPhoneNumber());
+        if (command.phoneNumber() != null) {
+            user.setPhoneNumber(command.phoneNumber());
         }
-        if (userUpdateRequestDto.getPassword() != null) {
+        if (command.password() != null) {
             user.setPassword(passwordEncoder.encode(
-                    userUpdateRequestDto.getPassword()));
+                    command.password()));
         }
 
         log.info("Updating user with id: {}", user.getId());

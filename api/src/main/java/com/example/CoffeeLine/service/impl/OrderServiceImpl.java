@@ -1,7 +1,6 @@
 package com.example.CoffeeLine.service.impl;
 
 import com.example.CoffeeLine.common.OrderStatus;
-import com.example.CoffeeLine.domain.Coffee;
 import com.example.CoffeeLine.domain.Order;
 import com.example.CoffeeLine.domain.OrderItem;
 import com.example.CoffeeLine.domain.User;
@@ -14,6 +13,8 @@ import com.example.CoffeeLine.service.exception.OrderNotFoundException;
 import com.example.CoffeeLine.service.repository.OrderRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -32,16 +33,16 @@ public class OrderServiceImpl implements OrderService {
     private final CoffeeService coffeeService;
 
     @Override
-    public List<Order> getAllOrders(OrderStatus orderStatus) {
+    public Page<Order> getAllOrders(OrderStatus orderStatus, Pageable pageable) {
         if (orderStatus != null) {
-            return orderRepository.getOrdersByStatus(orderStatus);
+            return orderRepository.getOrdersByStatus(orderStatus, pageable);
         }
-        return orderRepository.findAll();
+        return orderRepository.findAll(pageable);
     }
 
     @Override
     public List<Order> getOrdersByUserId(UUID userId) {
-        return orderRepository.getOrdersByUserId(userId);
+        return orderRepository.findByUserIdWithDetails(userId);
     }
 
     @Override

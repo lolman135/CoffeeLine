@@ -9,5 +9,5 @@ public class CoffeeResponseDto {
     String description;
     double price;
     String imageUrl;
-    String categoryId;
+    String category;
 }

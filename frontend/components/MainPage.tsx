@@ -32,9 +32,13 @@ export default function MainPage() {
   const [searchQuery, setSearchQuery] = useState('');
 
   const filteredDrinks = drinks.filter(drink => {
-    const hasCategory = (drink as any).category !== undefined;
-    const categoryValue = hasCategory ? (drink as any).category : undefined;
-    const categoryMatch = selectedCategory === 'all' || (hasCategory && categoryValue === selectedCategory);
+    const raw = (drink as any).rawCategory as string | undefined;
+    const normalized = (raw || drink.category || '').toString().toLowerCase();
+    const isHot = normalized === 'hot' || normalized === 'гаряче';
+    const isCold = normalized === 'cold' || normalized === 'холодне';
+    const categoryMatch = selectedCategory === 'all'
+      || (selectedCategory === 'hot' && isHot)
+      || (selectedCategory === 'cold' && isCold);
 
     const searchLower = searchQuery.toLowerCase();
     const searchMatch = searchQuery === '' || 

@@ -15,12 +15,14 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import org.springframework.data.domain.Pageable;
 import java.util.UUID;
 
 @RestController
@@ -67,14 +69,12 @@ public class OrderController {
             )
     })
     @GetMapping
-    public ResponseEntity<Object> getAllOrders(
-            @RequestParam(value = "status", required = false) OrderStatus orderStatus) {
-        return ResponseEntity.ok()
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(new OrderListResponseDto(
-                        orderService.getAllOrders(orderStatus).stream()
-                                .map(orderMapper::toOrderResponseDto)
-                                .toList()));
+    public Page<OrderResponseDto> getAllOrders(
+            @RequestParam(value = "status", required = false) OrderStatus orderStatus,
+            Pageable pageable
+    ) {
+        return orderService.getAllOrders(orderStatus, pageable)
+                .map(orderMapper::toOrderResponseDto);
     }
 
     @Operation(summary = "Get all orders by user ID")
@@ -275,7 +275,7 @@ public class OrderController {
                     )
             )
     })
-    @PutMapping
+    @PatchMapping
     public ResponseEntity<Object> updateOrderStatus(
             @Valid @RequestBody UpdateOrderStatusRequestDto updateOrderStatusRequestDto) {
         return ResponseEntity.ok()

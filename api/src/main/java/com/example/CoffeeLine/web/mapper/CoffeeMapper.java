@@ -7,6 +7,6 @@ import org.mapstruct.Mapping;
 
 @Mapper(componentModel = "spring")
 public interface CoffeeMapper {
-    @Mapping(source = "category.id", target = "categoryId")
+    @Mapping(source = "category.name", target = "category")
     CoffeeResponseDto toCoffeeResponseDto(Coffee coffee);
 }

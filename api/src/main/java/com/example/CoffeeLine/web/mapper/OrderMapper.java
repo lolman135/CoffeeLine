@@ -12,5 +12,6 @@ public interface OrderMapper {
     @Mapping(source = "user.id", target = "userId")
     OrderResponseDto toOrderResponseDto(Order order);
     @Mapping(source = "coffee.id", target = "coffeeId")
+    @Mapping(source = "coffee.name", target = "name")
     OrderItemResponseDto toOrderItemResponseDto(OrderItem orderItem);
 }

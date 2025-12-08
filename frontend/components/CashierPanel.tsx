@@ -1,22 +1,22 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { RefreshCw, User, LogOut } from 'lucide-react';
+import { RefreshCw, LogOut } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { useOrders, Order, OrderStatus } from '../contexts/OrdersContext';
-import svgPaths from "../imports/svg-k4b1fjq95c";
+import { useOrders, Order, OrderStatus as BackendOrderStatus } from '../contexts/OrdersContext';
+import svgPaths from "@/imports/svg-tpegvdjy05.ts";
 
 function CoffeeLogo() {
-  return (
-    <div className="absolute left-[10px] size-[20px] top-[10px]">
-      <svg className="block size-full" fill="none" preserveAspectRatio="none" viewBox="0 0 20 20">
-        <g>
-          <path clipRule="evenodd" d={svgPaths.p3eb47300} fill="var(--fill-0, white)" fillRule="evenodd" />
-          <path d={svgPaths.p1808a500} fill="var(--fill-0, white)" />
-          <path clipRule="evenodd" d={svgPaths.p3cbb83f0} fill="var(--fill-0, white)" fillRule="evenodd" />
-        </g>
-      </svg>
-    </div>
-  );
+    return (
+        <div className="absolute left-[10px] size-[20px] top-[10px]">
+            <svg className="block size-full" fill="none" preserveAspectRatio="none" viewBox="0 0 20 20">
+                <g>
+                    <path clipRule="evenodd" d={svgPaths.p3eb47300} fill="var(--fill-0, white)" fillRule="evenodd" />
+                    <path d={svgPaths.p1808a500} fill="var(--fill-0, white)" />
+                    <path clipRule="evenodd" d={svgPaths.p3cbb83f0} fill="var(--fill-0, white)" fillRule="evenodd" />
+                </g>
+            </svg>
+        </div>
+    );
 }
 
 function Header() {
@@ -56,40 +56,39 @@ function Header() {
 
 interface OrderCardProps {
   order: Order;
-  onAccept: (orderId: string) => void;
-  onComplete: (orderId: string) => void;
-  onIssued: (orderId: string) => void;
+  onAdvance: (orderId: string, next: BackendOrderStatus) => void;
   onCancel: (orderId: string) => void;
   showActions: boolean;
 }
 
-function OrderCard({ order, onAccept, onComplete, onIssued, onCancel, showActions }: OrderCardProps) {
-  const getStatusConfig = (status: OrderStatus) => {
+function OrderCard({ order, onAdvance, onCancel, showActions }: OrderCardProps) {
+  const getStatusConfig = (status: BackendOrderStatus) => {
     switch (status) {
-      case 'pending':
-        return { text: 'Очікує', bg: '#fef3c6', color: '#973c00' };
-      case 'preparing':
-        return { text: 'Готується', bg: '#DBEAFE', color: '#193CB8' };
-      case 'ready':
+      case 'CREATED':
+        return { text: 'Створено', bg: '#E6FFFA', color: '#2C7A7F' };
+      case 'PROCESSING':
+        return { text: 'В обробці', bg: '#DBEAFE', color: '#193CB8' };
+      case 'READY':
         return { text: 'Готово', bg: '#DCFCE7', color: '#016630' };
-      case 'completed':
+      case 'COMPLETED':
         return { text: 'Завершено', bg: '#F3E8FF', color: '#6E11B0' };
-      case 'cancelled':
+      case 'CANCELLED':
         return { text: 'Скасовано', bg: '#FFE2E2', color: '#9F0712' };
       default:
-        return { text: 'Очікує', bg: '#fef3c6', color: '#973c00' };
+        return { text: String(status), bg: '#fef3c6', color: '#973c00' };
     }
   };
 
   const statusConfig = getStatusConfig(order.status);
 
-  const getActionButton = () => {
+  const getAdvanceButton = () => {
     if (!showActions) return null;
 
-    if (order.status === 'pending') {
+    if (order.status === 'CREATED') {
+      // First press: to PROCESSING
       return (
         <button
-          onClick={() => onAccept(order.id)}
+          onClick={() => onAdvance(order.id, 'PROCESSING')}
           className="bg-blue-600 h-[36px] rounded-[2px] shadow-[0px_4px_6px_-4px_rgba(37,99,235,0.2),0px_10px_15px_-3px_rgba(37,99,235,0.2)] hover:bg-blue-700 transition-colors flex-1 flex items-center justify-center"
         >
           <p className="font-['Inter:Medium',sans-serif] font-medium text-[14px] text-white">Прийняти</p>
@@ -97,24 +96,14 @@ function OrderCard({ order, onAccept, onComplete, onIssued, onCancel, showAction
       );
     }
 
-    if (order.status === 'preparing') {
+    if (order.status === 'PROCESSING') {
+      // Second press: to COMPLETED
       return (
         <button
-          onClick={() => onComplete(order.id)}
+          onClick={() => onAdvance(order.id, 'COMPLETED')}
           className="bg-green-600 h-[36px] rounded-[2px] shadow-[0px_4px_6px_-4px_rgba(34,197,94,0.2),0px_10px_15px_-3px_rgba(34,197,94,0.2)] hover:bg-green-700 transition-colors flex-1 flex items-center justify-center"
         >
           <p className="font-['Inter:Medium',sans-serif] font-medium text-[14px] text-white">Готово</p>
-        </button>
-      );
-    }
-
-    if (order.status === 'ready') {
-      return (
-        <button
-          onClick={() => onIssued(order.id)}
-          className="bg-gray-400 h-[36px] rounded-[2px] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] hover:bg-gray-500 transition-colors flex-1 flex items-center justify-center"
-        >
-          <p className="font-['Inter:Medium',sans-serif] font-medium text-[14px] text-white">Видано</p>
         </button>
       );
     }
@@ -128,19 +117,8 @@ function OrderCard({ order, onAccept, onComplete, onIssued, onCancel, showAction
       <div className="flex items-start justify-between mb-4">
         <div>
           <h3 className="font-['Inter:Semi_Bold',sans-serif] font-semibold text-[18px] text-black mb-2">
-            Замовлення #{order.id}
+            Замовлення №{order.id.substring(0, 7)}
           </h3>
-          <div className="flex items-center gap-2 text-[14px] text-zinc-500">
-            <span className="font-['Inter:Regular',sans-serif]">{order.customerName}</span>
-            <span>•</span>
-            <span className="font-['Inter:Regular',sans-serif]">{order.phone}</span>
-            {order.address && (
-              <>
-                <span>•</span>
-                <span className="font-['Inter:Regular',sans-serif]">{order.address}</span>
-              </>
-            )}
-          </div>
         </div>
         <div
           className="h-[22px] px-[10px] rounded-[2px] flex items-center justify-center"
@@ -157,12 +135,11 @@ function OrderCard({ order, onAccept, onComplete, onIssued, onCancel, showAction
 
       {/* Items */}
       <div className="mb-4">
-        {order.items.map((item, index) => (
+        {order.items.map((item: any, index: number) => (
           <div key={index} className="flex gap-2 mb-1">
             <span className="text-zinc-500 text-[14px]">•</span>
             <span className="font-['Inter:Regular',sans-serif] text-[14px] text-black">
-              {item.name} {item.size && `(${item.size})`} {item.quantity > 1 && `x${item.quantity}`}
-              {item.additions && item.additions.length > 0 && ` + ${item.additions.join(', ')}`}
+              {item.name || 'Кава'}{item.quantity > 1 ? ` x${item.quantity}` : ''}
             </span>
           </div>
         ))}
@@ -170,21 +147,15 @@ function OrderCard({ order, onAccept, onComplete, onIssued, onCancel, showAction
 
       {/* Order Info */}
       <div className="flex items-center gap-4 text-[14px] text-zinc-500 mb-6">
-        <span className="font-['Inter:Regular',sans-serif]">
-          Спосіб: {order.deliveryMethod === 'delivery' ? 'Доставка' : 'Самовивіз'}
-        </span>
-        <span className="font-['Inter:Regular',sans-serif]">
-          Оплата: {order.paymentMethod === 'cash' ? 'Готівкою' : 'Карткою'}
-        </span>
         <span className="font-['Inter:Regular',sans-serif]">Сума: {order.total} ₴</span>
-        <span className="font-['Inter:Regular',sans-serif]">Час: {order.date} {order.time}</span>
+        <span className="font-['Inter:Regular',sans-serif]">Час: {formatOrderDate(order.date)}</span>
       </div>
 
       {/* Action Buttons */}
       {showActions && (
         <div className="flex gap-2">
-          {getActionButton()}
-          {(order.status === 'pending' || order.status === 'preparing') && (
+          {getAdvanceButton()}
+          {(order.status === 'CREATED' || order.status === 'PROCESSING') && (
             <button
               onClick={() => onCancel(order.id)}
               className="bg-white h-[36px] rounded-[2px] border border-red-500 hover:bg-red-50 transition-colors flex-1 flex items-center justify-center"
@@ -198,49 +169,70 @@ function OrderCard({ order, onAccept, onComplete, onIssued, onCancel, showAction
   );
 }
 
+function formatOrderDate(iso?: string, locale?: string): string {
+  if (!iso) return '';
+  const normalized = iso.replace(/(\.\d{3})\d+$/, '$1');
+  let d = new Date(normalized);
+  if (isNaN(d.getTime())) {
+    d = new Date(normalized.endsWith('Z') ? normalized : normalized + 'Z');
+    if (isNaN(d.getTime())) return iso;
+  }
+  const loc = locale || (typeof navigator !== 'undefined' ? navigator.language : 'uk-UA');
+  const time = new Intl.DateTimeFormat(loc, { hour: '2-digit', minute: '2-digit', hour12: false }).format(d);
+  const weekdayRaw = new Intl.DateTimeFormat(loc, { weekday: 'long' }).format(d);
+  const weekday = weekdayRaw.charAt(0).toUpperCase() + weekdayRaw.slice(1);
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yyyy = d.getFullYear();
+  return `${time}, ${weekday} ${dd}.${mm}.${yyyy}`;
+}
+
+function toMillis(iso?: string): number {
+  if (!iso) return 0;
+  const normalized = iso.replace(/(\.\d{3})\d+$/, '$1');
+  let d = new Date(normalized);
+  if (isNaN(d.getTime())) d = new Date(normalized.endsWith('Z') ? normalized : normalized + 'Z');
+  return isNaN(d.getTime()) ? 0 : d.getTime();
+}
+
 export default function CashierPanel() {
-  const { orders, updateOrderStatus } = useOrders();
+  const { orders, updateOrderStatus, refresh } = useOrders();
   const [activeTab, setActiveTab] = useState<'active' | 'all'>('active');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
-  const handleAcceptOrder = (orderId: string) => {
-    updateOrderStatus(orderId, 'preparing');
-  };
-
-  const handleCompleteOrder = (orderId: string) => {
-    updateOrderStatus(orderId, 'ready');
-  };
-
-  const handleIssuedOrder = (orderId: string) => {
-    updateOrderStatus(orderId, 'completed');
-  };
-
-  const handleCancelOrder = (orderId: string) => {
-    updateOrderStatus(orderId, 'cancelled');
-  };
-
   const handleRefresh = () => {
-    // При натисканні "Оновити" React Context автоматично оновиться через storage listener
-    console.log('Refreshing orders...');
+    if (activeTab === 'active') {
+      refresh(0, itemsPerPage, 'CREATED').catch(() => {});
+    } else {
+      refresh(0, itemsPerPage).catch(() => {});
+    }
   };
 
-  const activeOrders = orders.filter(order =>
-    order.status === 'pending' || order.status === 'preparing' || order.status === 'ready'
-  );
+  // Fetch only CREATED when active tab is selected
+  useEffect(() => {
+    handleRefresh();
+  }, [activeTab, itemsPerPage]);
 
+  const onAdvance = async (orderId: string, next: BackendOrderStatus) => {
+    await updateOrderStatus(orderId, next);
+  };
+
+  const handleCancelOrder = async (orderId: string) => {
+    await updateOrderStatus(orderId, 'CANCELLED');
+  };
+
+  const activeOrders = orders.filter(order => order.status === 'CREATED' || order.status === 'PROCESSING');
   const displayOrders = activeTab === 'active' ? activeOrders : orders;
 
-  // Pagination logic
-  const totalPages = Math.ceil(displayOrders.length / itemsPerPage);
+  const sortedOrders = [...displayOrders].sort((a, b) => toMillis(b.date) - toMillis(a.date));
+
+  const totalPages = Math.ceil(sortedOrders.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
-  const paginatedOrders = displayOrders.slice(startIndex, endIndex);
+  const paginatedOrders = sortedOrders.slice(startIndex, endIndex);
 
-  // Reset to page 1 when tab or items per page changes
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [activeTab, itemsPerPage]);
+  useEffect(() => { setCurrentPage(1); }, [activeTab, itemsPerPage]);
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
@@ -248,55 +240,27 @@ export default function CashierPanel() {
   };
 
   const getPageNumbers = () => {
-    const pages = [];
-    const maxVisiblePages = 5;
-    
-    if (totalPages <= maxVisiblePages) {
-      for (let i = 1; i <= totalPages; i++) {
-        pages.push(i);
-      }
-    } else {
-      if (currentPage <= 3) {
-        for (let i = 1; i <= 4; i++) pages.push(i);
-        pages.push('...');
-        pages.push(totalPages);
-      } else if (currentPage >= totalPages - 2) {
-        pages.push(1);
-        pages.push('...');
-        for (let i = totalPages - 3; i <= totalPages; i++) pages.push(i);
-      } else {
-        pages.push(1);
-        pages.push('...');
-        pages.push(currentPage - 1);
-        pages.push(currentPage);
-        pages.push(currentPage + 1);
-        pages.push('...');
-        pages.push(totalPages);
-      }
-    }
-    
+    const pages: (number | string)[] = [];
+    const maxVisible = 5;
+    const total = totalPages;
+    if (total <= maxVisible) { for (let i = 1; i <= total; i++) pages.push(i); }
+    else if (currentPage <= 3) { for (let i = 1; i <= 4; i++) pages.push(i); pages.push('...'); pages.push(total); }
+    else if (currentPage >= total - 2) { pages.push(1, '...'); for (let i = total - 3; i <= total; i++) pages.push(i); }
+    else { pages.push(1, '...', currentPage - 1, currentPage, currentPage + 1, '...', total); }
     return pages;
   };
 
   return (
     <div className="bg-[#fff5e6] min-h-screen">
       <Header />
-
       <main className="pt-[65px] min-h-screen">
         <div className="max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-20 py-8 md:py-12">
           {/* Page Header */}
           <div className="flex items-center justify-between mb-6">
-            <h1 className="font-['Inter:Semi_Bold',sans-serif] font-semibold text-[24px] text-black tracking-[-0.6px]">
-              Панель касира
-            </h1>
-            <button
-              onClick={handleRefresh}
-              className="bg-white h-[32px] px-4 rounded-[6px] border border-zinc-200 shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] hover:bg-gray-50 transition-colors flex items-center gap-2"
-            >
+            <h1 className="font-['Inter:Semi_Bold',sans-serif] font-semibold text-[24px] text-black tracking-[-0.6px]">Панель касира</h1>
+            <button onClick={handleRefresh} className="bg-white h-[32px] px-4 rounded-[6px] border border-zinc-200 shadow-[0px_1px_2px_0px_rgba(0,0,0,0.05)] hover:bg-gray-50 transition-colors flex items-center gap-2">
               <RefreshCw className="w-4 h-4 text-black" />
-              <span className="font-['Inter:Medium',sans-serif] font-medium text-[14px] text-black">
-                Оновити
-              </span>
+              <span className="font-['Inter:Medium',sans-serif] font-medium text-[14px] text-black">Оновити</span>
             </button>
           </div>
 
@@ -370,9 +334,7 @@ export default function CashierPanel() {
                 <OrderCard
                   key={order.id}
                   order={order}
-                  onAccept={handleAcceptOrder}
-                  onComplete={handleCompleteOrder}
-                  onIssued={handleIssuedOrder}
+                  onAdvance={onAdvance}
                   onCancel={handleCancelOrder}
                   showActions={activeTab === 'active'}
                 />

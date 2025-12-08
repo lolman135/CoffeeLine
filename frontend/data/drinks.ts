@@ -18,6 +18,7 @@ export interface Drink {
   basePrice: number;
   price: number;
   category: 'hot' | 'cold';
+  rawCategory?: string; // original backend category string, used for filtering
   image: string;
   sizes: DrinkSize[];
   addons: Addon[];

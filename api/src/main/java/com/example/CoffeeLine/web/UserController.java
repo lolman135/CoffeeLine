@@ -5,6 +5,7 @@ import com.example.CoffeeLine.dto.user.UserListResponseDto;
 import com.example.CoffeeLine.dto.user.UserResponseDto;
 import com.example.CoffeeLine.dto.user.UserUpdateRequestDto;
 import com.example.CoffeeLine.service.UserService;
+import com.example.CoffeeLine.service.command.UpdateUserCommand;
 import com.example.CoffeeLine.service.repository.UserRepository;
 import com.example.CoffeeLine.web.mapper.UserMapper;
 import io.swagger.v3.oas.annotations.Operation;
@@ -161,11 +162,21 @@ public class UserController {
                     )
             )
     })
-    @PutMapping
-    public ResponseEntity<Object> updateUser(@Valid @RequestBody UserUpdateRequestDto userUpdateRequestDto) {
+    @PutMapping("{id}")
+    public ResponseEntity<Object> updateUser(
+            @Valid @RequestBody UserUpdateRequestDto userUpdateRequestDto,
+            @PathVariable UUID id
+    ) {
+
+        UpdateUserCommand command = new UpdateUserCommand(
+                id,
+                userUpdateRequestDto.getName(),
+                userUpdateRequestDto.getPhoneNumber(),
+                userUpdateRequestDto.getPassword()
+        );
         return ResponseEntity.ok()
                 .body(userMapper.toUserResponseDto(
-                        userService.updateUser(userUpdateRequestDto)));
+                        userService.updateUser(command)));
     }
 
     @Operation(summary = "Add role to user")
@@ -358,8 +369,8 @@ public class UserController {
             @AuthenticationPrincipal com.example.CoffeeLine.domain.User userDetails,
             @Valid @RequestBody UserUpdateRequestDto request
     ) {
-        UserUpdateRequestDto effectiveRequest = new UserUpdateRequestDto(
-                userDetails.getId().toString(),
+        UpdateUserCommand command = new UpdateUserCommand(
+                userDetails.getId(),
                 request.getName(),
                 request.getPhoneNumber(),
                 request.getPassword()
@@ -367,6 +378,6 @@ public class UserController {
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(userMapper.toUserResponseDto(
-                        userService.updateUser(effectiveRequest)));
+                        userService.updateUser(command)));
     }
 }

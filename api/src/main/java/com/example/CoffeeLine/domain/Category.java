@@ -3,6 +3,8 @@ package com.example.CoffeeLine.domain;
 import jakarta.persistence.*;
 import lombok.Data;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Data
@@ -16,4 +18,7 @@ public class Category {
 
     @Column(name = "name", length = 25, nullable = false)
     private String name;
+
+    @OneToMany(mappedBy = "category", orphanRemoval = true)
+    private List<Coffee> coffees = new ArrayList<>();
 }

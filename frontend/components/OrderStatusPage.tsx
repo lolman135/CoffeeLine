@@ -3,12 +3,53 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import Header from './Header';
 import { getOrderById } from '../src/api/orders';
-import { apiFetch } from '../src/api/client';
+
+// Define DTOs based on backend response
+interface OrderItemDto {
+  id: string;
+  coffeeId: string;
+  name: string;
+  quantity: number;
+}
+
+interface OrderDto {
+  id: string;
+  createdAt: string;
+  totalCost: number;
+  status: 'CREATED' | 'PROCESSING' | 'READY' | 'COMPLETED' | 'CANCELLED';
+  userId: string;
+  items: OrderItemDto[];
+}
+
+function formatOrderDate(iso: string, locale?: string): string {
+  if (!iso) return '';
+  // Normalize fractional seconds to milliseconds (3 digits) to avoid Invalid Date
+  const normalized = iso.replace(/(\.\d{3})\d+$/, '$1');
+  const d = new Date(normalized);
+  if (isNaN(d.getTime())) {
+    // Fallback: try appending 'Z' (treat as UTC) and re-parse
+    const d2 = new Date(normalized.endsWith('Z') ? normalized : normalized + 'Z');
+    if (isNaN(d2.getTime())) return iso; // give up, return raw
+    return formatDateParts(d2, locale);
+  }
+  return formatDateParts(d, locale);
+}
+
+function formatDateParts(d: Date, locale?: string): string {
+  const loc = locale || (typeof navigator !== 'undefined' ? navigator.language : 'uk-UA');
+  const time = new Intl.DateTimeFormat(loc, { hour: '2-digit', minute: '2-digit', hour12: false }).format(d);
+  const weekdayRaw = new Intl.DateTimeFormat(loc, { weekday: 'long' }).format(d);
+  const weekday = weekdayRaw.charAt(0).toUpperCase() + weekdayRaw.slice(1);
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yyyy = d.getFullYear();
+  return `${time}, ${weekday} ${dd}.${mm}.${yyyy}`;
+}
 
 export default function OrderStatusPage() {
   const { orderId } = useParams<{ orderId: string }>();
   const navigate = useNavigate();
-  const [order, setOrder] = useState<{ id: string; status: string; items?: Array<{ name?: string; size?: string; additions?: string[]; quantity: number; price?: number }>; userId?: string; total?: number; date?: string; time?: string } | null>(null);
+  const [order, setOrder] = useState<OrderDto | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -16,8 +57,8 @@ export default function OrderStatusPage() {
     if (!orderId) return;
     setLoading(true);
     getOrderById(orderId)
-      .then(async (o) => {
-        setOrder(o as any);
+      .then((o) => {
+        setOrder(o as unknown as OrderDto);
         setError(null);
       })
       .catch((e) => setError(e?.message || 'Не вдалося завантажити замовлення'))
@@ -45,24 +86,17 @@ export default function OrderStatusPage() {
     );
   }
 
-  const getDeliveryMethodText = (method: string) => {
-    return method === 'delivery' ? 'Доставка' : 'Самовивіз';
-  };
-
-  const getPaymentMethodText = (method: string) => {
-    return method === 'card' ? 'Карткою' : 'Готівкою';
-  };
-
   const getStatusStep = () => {
     switch (order.status) {
-      case 'pending':
-        return 0; // Жоден крок не підсвічений
-      case 'preparing':
-        return 1; // Тільки крок 1 "Прийнято" підсвічений
-      case 'ready':
-        return 2; // Кроки 1 і 2 підсвічені
-      case 'completed':
-        return 3; // Всі 3 кроки підсвічені
+      case 'CREATED':
+        return 1;
+      case 'PROCESSING':
+        return 2;
+      case 'READY':
+      case 'COMPLETED':
+        return 3;
+      case 'CANCELLED':
+        return 0;
       default:
         return 0;
     }
@@ -70,15 +104,15 @@ export default function OrderStatusPage() {
 
   const getStatusTitle = () => {
     switch (order.status) {
-      case 'pending':
+      case 'CREATED':
         return 'Очікується підтвердження';
-      case 'preparing':
+      case 'PROCESSING':
         return 'Готується';
-      case 'ready':
+      case 'READY':
         return 'Готово до видачі';
-      case 'completed':
+      case 'COMPLETED':
         return 'Замовлення завершено';
-      case 'cancelled':
+      case 'CANCELLED':
         return 'Замовлення скасовано';
       default:
         return 'Очікується підтвердження';
@@ -129,7 +163,7 @@ export default function OrderStatusPage() {
                 Номер замовлення:{' '}
               </p>
               <p className="font-['Inter:Medium',sans-serif] font-medium text-[14px] text-[#ff6900] inline">
-                {order.id}
+                {order.id.substring(0, 7)}
               </p>
             </div>
 
@@ -212,14 +246,10 @@ export default function OrderStatusPage() {
 
               {/* Items List */}
               <div className="space-y-2 mb-4">
-                {order.items?.map((item: { name?: string; size?: string; additions?: string[]; quantity: number; price?: number }, index: number) => (
+                {order.items?.map((item, index) => (
                   <div key={index} className="flex justify-between items-start">
                     <p className="font-['Inter:Regular',sans-serif] font-normal text-[14px] text-[#666666] flex-1">
-                      {item.name || 'Кава'} {item.size && `(${item.size})`} x{item.quantity}
-                      {item.additions && item.additions.length > 0 && ` + ${item.additions.join(', ')}`}
-                    </p>
-                    <p className="font-['Inter:Medium',sans-serif] font-medium text-[16px] text-[#101828]">
-                      {item.price ? item.price * item.quantity : ''}
+                      {item.name} x{item.quantity}
                     </p>
                   </div>
                 ))}
@@ -232,38 +262,20 @@ export default function OrderStatusPage() {
                     Всього
                   </p>
                   <p className="font-['Inter:Medium',sans-serif] font-medium text-[16px] text-[#101828]">
-                    {order.total} ₴
+                    {order.totalCost} ₴
                   </p>
                 </div>
               </div>
             </div>
 
-            {/* Delivery & Payment Info */}
+            {/* Created time */}
             <div className="pt-6 border-t border-gray-100 space-y-4">
-              <div className="flex justify-between items-center">
-                <p className="font-['Inter:Regular',sans-serif] font-normal text-[14px] text-[#6a7282]">
-                  Спосіб отримання:
-                </p>
-                <p className="font-['Inter:Medium',sans-serif] font-medium text-[14px] text-[#101828]">
-                  {getDeliveryMethodText(order.deliveryMethod)}
-                </p>
-              </div>
-
-              <div className="flex justify-between items-center">
-                <p className="font-['Inter:Regular',sans-serif] font-normal text-[14px] text-[#6a7282]">
-                  Оплата:
-                </p>
-                <p className="font-['Inter:Medium',sans-serif] font-medium text-[14px] text-[#101828]">
-                  {getPaymentMethodText(order.paymentMethod)}
-                </p>
-              </div>
-
               <div className="flex justify-between items-center gap-2">
                 <p className="font-['Inter:Regular',sans-serif] font-normal text-[14px] text-[#6a7282] flex-shrink-0">
                   Час створення:
                 </p>
                 <p className="font-['Inter:Medium',sans-serif] font-medium text-[12px] sm:text-[14px] text-[#101828] text-right">
-                  {order.date}, {order.time}
+                  {formatOrderDate(order.createdAt)}
                 </p>
               </div>
             </div>
