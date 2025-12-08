@@ -7,6 +7,7 @@ import com.example.CoffeeLine.dto.user.UserUpdateRequestDto;
 import com.example.CoffeeLine.security.CustomUserDetailsService;
 import com.example.CoffeeLine.service.JwtService;
 import com.example.CoffeeLine.service.UserService;
+import com.example.CoffeeLine.service.command.UpdateUserCommand;
 import com.example.CoffeeLine.service.repository.UserRepository;
 import com.example.CoffeeLine.web.mapper.UserMapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -28,6 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(controllers = UserController.class)
@@ -109,42 +111,55 @@ class UserControllerTest {
     @Test
     @DisplayName("updateUser should call service with correct data and return updated user")
     void updateUser_Returns200() throws Exception {
+        // given
         UserUpdateRequestDto request = new UserUpdateRequestDto(
-                userId.toString(), "Updated Name", "0931111111", "newPass"
+                "John",
+                "0991112233",
+                "password123"
         );
 
+        UUID userId = UUID.randomUUID();
+
         User updatedUser = mock(User.class);
-        when(userService.updateUser(any(UserUpdateRequestDto.class))).thenReturn(updatedUser);
+        when(userService.updateUser(any(UpdateUserCommand.class)))
+                .thenReturn(updatedUser);
         when(userMapper.toUserResponseDto(updatedUser)).thenReturn(userResponseDto);
 
-        mockMvc.perform(put("/api/v1/users")
+        // when + then
+        mockMvc.perform(put("/api/v1/users/{id}", userId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(userId.toString()))
-                .andExpect(jsonPath("$.name").value("John Doe"));
+                .andExpect(jsonPath("$.id").value(userResponseDto.getId().toString()))
+                .andExpect(jsonPath("$.name").value(userResponseDto.getName()));
 
-        ArgumentCaptor<UserUpdateRequestDto> captor = ArgumentCaptor.forClass(UserUpdateRequestDto.class);
+        // capture the argument passed to service
+        ArgumentCaptor<UpdateUserCommand> captor =
+                ArgumentCaptor.forClass(UpdateUserCommand.class);
+
         verify(userService).updateUser(captor.capture());
+        UpdateUserCommand capturedCmd = captor.getValue();
 
-        UserUpdateRequestDto capturedDto = captor.getValue();
-        assertEquals(request.getId(), capturedDto.getId());
-        assertEquals(request.getName(), capturedDto.getName());
-        assertEquals(request.getPhoneNumber(), capturedDto.getPhoneNumber());
-        assertEquals(request.getPassword(), capturedDto.getPassword());
+        assertEquals(userId, capturedCmd.id());
+        assertEquals(request.getName(), capturedCmd.name());
+        assertEquals(request.getPhoneNumber(), capturedCmd.phoneNumber());
+        assertEquals(request.getPassword(), capturedCmd.password());
     }
+
 
     @Test
     @DisplayName("updateUser should return 400 when input has invalid fields")
     void updateUser_InvalidInput_Returns400() throws Exception {
+        // given
         UserUpdateRequestDto invalidRequest = new UserUpdateRequestDto(
-                "short-id",
-                "A",
-                "1234567890", // Invalid: must start with 0
-                "short" // Invalid: password size min > 5
+                "",
+                "",
+                ""
         );
 
-        mockMvc.perform(put("/api/v1/users")
+        UUID userId = UUID.randomUUID(); // required for the path
+
+        mockMvc.perform(put("/api/v1/users/{id}", userId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(invalidRequest)))
                 .andExpect(status().isBadRequest());

@@ -141,37 +141,34 @@ class UserServiceImplTest {
         User existingUser = createTestUser();
         UUID id = existingUser.getId();
 
-        UserUpdateRequestDto dto = new UserUpdateRequestDto(
-                id.toString(),
-                "New Name",
-                null,
-                "newSecretPassword"
-        );
+        // FIX: Declare correct password you EXPECT to encode
+        String rawPassword = "newSecretPassword";
+
+        com.example.CoffeeLine.service.command.UpdateUserCommand cmd =
+                new com.example.CoffeeLine.service.command.UpdateUserCommand(
+                        id,
+                        "John",
+                        "+380991112233",
+                        rawPassword          // CORRECT argument
+                );
 
         when(userRepository.findById(id)).thenReturn(Optional.of(existingUser));
-        when(passwordEncoder.encode("newSecretPassword")).thenReturn("encodedNewPassword");
+        when(passwordEncoder.encode(rawPassword)).thenReturn("encodedNewPassword");
         when(userRepository.save(any(User.class))).thenAnswer(i -> i.getArguments()[0]);
 
-        User updatedUser = userService.updateUser(dto);
+        User updated = userService.updateUser(cmd);
 
-        assertNotNull(updatedUser);
-        assertEquals("New Name", updatedUser.getName());
-        assertEquals("encodedNewPassword", updatedUser.getPassword());
-        assertEquals("0987654321", updatedUser.getPhoneNumber());
-        assertEquals("john.doe@example.com", updatedUser.getEmail());
+        assertEquals("John", updated.getName());
+        assertEquals("encodedNewPassword", updated.getPassword());
+        assertEquals("+380991112233", updated.getPhoneNumber());
+        assertEquals(existingUser.getEmail(), updated.getEmail());
 
-        ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
-        verify(userRepository).save(userCaptor.capture());
+        ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).save(captor.capture());
 
-        User capturedUser = userCaptor.getValue();
+        assertEquals("encodedNewPassword", captor.getValue().getPassword());
 
-        assertEquals("New Name", capturedUser.getName());
-        assertEquals("encodedNewPassword", capturedUser.getPassword());
-        assertEquals("0987654321", capturedUser.getPhoneNumber());
-        assertEquals("john.doe@example.com", capturedUser.getEmail());
-        assertEquals(existingUser.getId(), capturedUser.getId());
-
-        verify(passwordEncoder).encode("newSecretPassword");
+        verify(passwordEncoder).encode(rawPassword);
     }
 
     @Test
@@ -180,26 +177,27 @@ class UserServiceImplTest {
         User existingUser = createTestUser();
         UUID id = existingUser.getId();
 
-        UserUpdateRequestDto dto = new UserUpdateRequestDto(
-                id.toString(),
-                null,
-                "0999999999",
-                null
-        );
-
         when(userRepository.findById(id)).thenReturn(Optional.of(existingUser));
         when(userRepository.save(any(User.class))).thenAnswer(i -> i.getArguments()[0]);
 
-        User updatedUser = userService.updateUser(dto);
+        com.example.CoffeeLine.service.command.UpdateUserCommand phoneOnlyCmd =
+                new com.example.CoffeeLine.service.command.UpdateUserCommand(
+                        id,
+                        null,
+                        "0999999999",
+                        null
+                );
 
-        assertNotNull(updatedUser);
-        assertEquals("0999999999", updatedUser.getPhoneNumber());
-        assertEquals("John Doe", updatedUser.getName());
-        assertEquals("hashedPassword123", updatedUser.getPassword());
+        User updated = userService.updateUser(phoneOnlyCmd);
+
+        assertEquals("0999999999", updated.getPhoneNumber());
+        assertEquals(existingUser.getName(), updated.getName());
+        assertEquals(existingUser.getPassword(), updated.getPassword());
 
         verify(passwordEncoder, never()).encode(any());
         verify(userRepository).save(existingUser);
     }
+
 
     @Test
     @DisplayName("addRoleToUser should add new role")

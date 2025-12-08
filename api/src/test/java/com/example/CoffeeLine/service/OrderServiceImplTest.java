@@ -16,6 +16,10 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import java.time.LocalDateTime;
@@ -72,12 +76,13 @@ class OrderServiceImplTest {
         Order order1 = createTestOrder(OrderStatus.CREATED);
         Order order2 = createTestOrder(OrderStatus.COMPLETED);
 
-        when(orderRepository.findAll()).thenReturn(List.of(order1, order2));
+        Pageable pageable = PageRequest.of(0, 10);
+        when(orderRepository.findAll(pageable)).thenReturn(new PageImpl<>(List.of(order1, order2), pageable, 2));
 
-        List<Order> result = orderService.getAllOrders(null);
+        Page<Order> result = orderService.getAllOrders(null, pageable);
 
-        assertEquals(2, result.size());
-        verify(orderRepository).findAll();
+        assertEquals(2, result.getTotalElements());
+        verify(orderRepository).findAll(pageable);
         verify(orderRepository, never()).getOrdersByStatus(any());
     }
 
@@ -90,30 +95,32 @@ class OrderServiceImplTest {
         Order order2 = createTestOrder(status);
         Order order3 = createTestOrder(status);
 
-        when(orderRepository.getOrdersByStatus(status)).thenReturn(List.of(order1, order2, order3));
+        Pageable pageable = PageRequest.of(0, 10);
+        when(orderRepository.getOrdersByStatus(status, pageable)).thenReturn(new PageImpl<>(List.of(order1, order2, order3), pageable, 3));
 
-        List<Order> result = orderService.getAllOrders(status);
+        Page<Order> result2 = orderService.getAllOrders(status, pageable);
 
-        assertEquals(3, result.size());
-        assertEquals(status, result.get(0).getStatus());
-        assertEquals(status, result.get(1).getStatus());
-        assertEquals(status, result.get(2).getStatus());
-        assertEquals(order1.getId(), result.get(0).getId());
+        assertEquals(3, result2.getTotalElements());
+        assertEquals(status, result2.getContent().get(0).getStatus());
+        assertEquals(status, result2.getContent().get(1).getStatus());
+        assertEquals(status, result2.getContent().get(2).getStatus());
+        assertEquals(order1.getId(), result2.getContent().get(0).getId());
 
-        verify(orderRepository).getOrdersByStatus(status);
-        verify(orderRepository, never()).findAll();
+        verify(orderRepository).getOrdersByStatus(status, pageable);
+        verify(orderRepository, never()).findAll(pageable);
     }
 
     @Test
     @DisplayName("getOrdersByUserId should invoke repository.getOrdersByUserId()")
     void getOrdersByUserId_Success() {
         UUID userId = UUID.randomUUID();
-        when(orderRepository.getOrdersByUserId(userId)).thenReturn(List.of(createTestOrder(OrderStatus.CREATED)));
+        List<Order> mocked = List.of(createTestOrder(OrderStatus.CREATED));
+        when(orderRepository.findByUserIdWithDetails(userId)).thenReturn(mocked);
 
         List<Order> result = orderService.getOrdersByUserId(userId);
 
-        assertEquals(1, result.size());
-        verify(orderRepository).getOrdersByUserId(userId);
+        assertEquals(mocked.size(), result.size());
+        verify(orderRepository).findByUserIdWithDetails(userId);
     }
 
     @Test

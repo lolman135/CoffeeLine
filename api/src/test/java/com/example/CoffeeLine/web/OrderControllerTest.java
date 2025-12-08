@@ -27,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(controllers = OrderController.class)
@@ -55,7 +56,7 @@ class OrderControllerTest {
     private final UUID userId = UUID.randomUUID();
     private final UUID coffeeId = UUID.randomUUID();
     private final Set<OrderItemResponseDto> itemResponses = Set.of(
-            new OrderItemResponseDto(UUID.randomUUID().toString(), coffeeId.toString(), 2)
+            new OrderItemResponseDto(UUID.randomUUID().toString(), coffeeId.toString(), "Cappuccino", 2)
     );
     private final OrderResponseDto orderResponseDto = new OrderResponseDto(
             orderId.toString(),
@@ -77,16 +78,20 @@ class OrderControllerTest {
     void getAllOrders_Returns200WithStatus() throws Exception {
         Order domainOrder = mock(Order.class);
 
-        when(orderService.getAllOrders(eq(OrderStatus.COMPLETED))).thenReturn(List.of(domainOrder));
+        // Mock getAllOrders with Pageable
+        org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(0, 20);
+        when(orderService.getAllOrders(eq(OrderStatus.COMPLETED), any(org.springframework.data.domain.Pageable.class)))
+                .thenReturn(new org.springframework.data.domain.PageImpl<>(java.util.List.of(domainOrder), pageable, 1));
         when(orderMapper.toOrderResponseDto(domainOrder)).thenReturn(orderResponseDto);
 
+        // For pageable response, assert on content size instead of $.orders
         mockMvc.perform(get("/api/v1/orders")
                         .param("status", "COMPLETED"))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$.orders.size()").value(1));
+                .andExpect(jsonPath("$.content.length()", org.hamcrest.Matchers.greaterThanOrEqualTo(1)));
 
-        verify(orderService).getAllOrders(eq(OrderStatus.COMPLETED));
+        verify(orderService).getAllOrders(eq(OrderStatus.COMPLETED), any(org.springframework.data.domain.Pageable.class));
     }
 
     @Test
@@ -94,13 +99,15 @@ class OrderControllerTest {
     void getAllOrders_UsesNullForStatus() throws Exception {
         Order domainOrder = mock(Order.class);
 
-        when(orderService.getAllOrders(isNull())).thenReturn(List.of(domainOrder));
+        org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(0, 20);
+        when(orderService.getAllOrders(isNull(), any(org.springframework.data.domain.Pageable.class)))
+                .thenReturn(new org.springframework.data.domain.PageImpl<>(java.util.List.of(domainOrder), pageable, 1));
         when(orderMapper.toOrderResponseDto(domainOrder)).thenReturn(orderResponseDto);
 
         mockMvc.perform(get("/api/v1/orders"))
                 .andExpect(status().isOk());
 
-        verify(orderService).getAllOrders(isNull());
+        verify(orderService).getAllOrders(isNull(), any(org.springframework.data.domain.Pageable.class));
     }
 
     @Test
@@ -206,7 +213,7 @@ class OrderControllerTest {
         when(orderService.updateOrderStatus(any(UpdateOrderStatusRequestDto.class))).thenReturn(domainOrder);
         when(orderMapper.toOrderResponseDto(domainOrder)).thenReturn(orderResponseDto);
 
-        mockMvc.perform(put("/api/v1/orders")
+        mockMvc.perform(patch("/api/v1/orders")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
@@ -226,7 +233,7 @@ class OrderControllerTest {
                 "SHIPPED" // Invalid: Not in OrderStatus enum
         );
 
-        mockMvc.perform(put("/api/v1/orders")
+        mockMvc.perform(patch("/api/v1/orders")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(invalidRequest)))
                 .andExpect(status().isBadRequest());

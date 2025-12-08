@@ -15,7 +15,7 @@ class CoffeeMapperTest {
     private final CoffeeMapper coffeeMapper = new CoffeeMapperImpl();
 
     @Test
-    @DisplayName("toCoffeeResponseDto should map fields and categoryId correctly")
+    @DisplayName("toCoffeeResponseDto should map fields correctly")
     void toCoffeeResponseDto_MapsCorrectly() {
         UUID coffeeId = UUID.randomUUID();
         UUID categoryId = UUID.randomUUID();
@@ -40,7 +40,6 @@ class CoffeeMapperTest {
         assertEquals("Tasty", dto.getDescription());
         assertEquals(50.0, dto.getPrice());
         assertEquals("img.png", dto.getImageUrl());
-        assertEquals(categoryId.toString(), dto.getCategoryId());
     }
 
     @Test

@@ -8,6 +8,7 @@ import com.example.CoffeeLine.dto.coffee.CoffeeUpdateRequestDto;
 import com.example.CoffeeLine.security.CustomUserDetailsService;
 import com.example.CoffeeLine.service.CoffeeService;
 import com.example.CoffeeLine.service.JwtService;
+import com.example.CoffeeLine.service.command.UpdateCoffeeCommand;
 import com.example.CoffeeLine.web.mapper.CoffeeMapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
@@ -27,6 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(controllers = CoffeeController.class)
@@ -151,44 +153,56 @@ class CoffeeControllerTest {
     @Test
     @DisplayName("updateCoffee should return 200 and updated coffee when input is valid")
     void updateCoffee_Success() throws Exception {
+
         CoffeeUpdateRequestDto request = new CoffeeUpdateRequestDto(
-                coffeeId.toString(),
-                "New Latte",
-                "New Desc",
-                60.0,
-                "new_url",
-                categoryId.toString()
+                "Latte",
+                "Tasty",
+                50.0,
+                "img.png",
+                "123e4567-e89b-12d3-a456-426614174000"
         );
 
+        UUID id = UUID.randomUUID(); // required path variable
+
         Coffee domainCoffee = mock(Coffee.class);
-        when(coffeeService.updateCoffee(any(CoffeeUpdateRequestDto.class))).thenReturn(domainCoffee);
+        when(coffeeService.updateCoffee(any(UpdateCoffeeCommand.class)))
+                .thenReturn(domainCoffee);
         when(coffeeMapper.toCoffeeResponseDto(domainCoffee)).thenReturn(coffeeResponseDto);
 
-        mockMvc.perform(put("/api/v1/coffees")
+        mockMvc.perform(put("/api/v1/coffees/{id}", id)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk());
 
-        ArgumentCaptor<CoffeeUpdateRequestDto> captor = ArgumentCaptor.forClass(CoffeeUpdateRequestDto.class);
+        // Capture arguments
+        ArgumentCaptor<UpdateCoffeeCommand> captor =
+                ArgumentCaptor.forClass(UpdateCoffeeCommand.class);
+
         verify(coffeeService).updateCoffee(captor.capture());
 
-        assertEquals(coffeeId.toString(), captor.getValue().getId());
-        assertEquals("New Latte", captor.getValue().getName());
+        UpdateCoffeeCommand cmd = captor.getValue();
+        assertEquals(id, cmd.id());
+        assertEquals("Latte", cmd.name());
+        assertEquals("Tasty", cmd.descriptions());
+        assertEquals(50.0, cmd.price());
+        assertEquals("img.png", cmd.imageUrl());
+        assertEquals(request.getCategoryId(), cmd.categoryId());
     }
 
     @Test
     @DisplayName("updateCoffee should return 400 when ID is invalid or fields are wrong")
     void updateCoffee_InvalidInput_Returns400() throws Exception {
         CoffeeUpdateRequestDto invalidRequest = new CoffeeUpdateRequestDto(
-                "invalid-id",
-                "Name",
-                "Desc",
-                -5.0,
-                "url",
-                categoryId.toString()
+                "L",       // too short → validation error
+                "",        // invalid
+                0.5,       // maybe invalid (if you require >= 1)
+                "",        // invalid image
+                "invalid-category-id" // invalid UUID
         );
 
-        mockMvc.perform(put("/api/v1/coffees")
+        UUID id = UUID.randomUUID(); // required
+
+        mockMvc.perform(put("/api/v1/coffees/{id}", id)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(invalidRequest)))
                 .andExpect(status().isBadRequest());

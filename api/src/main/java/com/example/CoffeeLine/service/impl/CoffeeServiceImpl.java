@@ -69,7 +69,7 @@ public class CoffeeServiceImpl implements CoffeeService {
         if (command.imageUrl() != null) {
             coffee.setImageUrl(command.imageUrl());
         }
-        if (command.categoryId() != null) {
+        if (command.categoryId() != null && !command.categoryId().isBlank()) {
             Category category = categoryService.getCategoryById(
                     UUID.fromString(command.categoryId()));
             coffee.setCategory(category);

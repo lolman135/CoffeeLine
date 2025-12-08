@@ -4,6 +4,7 @@ import com.example.CoffeeLine.domain.Category;
 import com.example.CoffeeLine.domain.Coffee;
 import com.example.CoffeeLine.dto.coffee.CoffeeRequestDto;
 import com.example.CoffeeLine.dto.coffee.CoffeeUpdateRequestDto;
+import com.example.CoffeeLine.service.command.UpdateCoffeeCommand;
 import com.example.CoffeeLine.service.exception.CoffeeNotFoundException;
 import com.example.CoffeeLine.service.impl.CoffeeServiceImpl;
 import com.example.CoffeeLine.service.repository.CoffeeRepository;
@@ -166,26 +167,32 @@ class CoffeeServiceImplTest {
                 .build();
 
         CoffeeUpdateRequestDto updateDto = new CoffeeUpdateRequestDto(
-                coffeeId.toString(),
-                "New Name",
-                "New Desc",
-                20.0,
-                "new.png",
-                newCategory.getId().toString()
+                "Latte",
+                "Tasty",
+                50.0,
+                "img.png",
+                "123e4567-e89b-12d3-a456-426614174000"
         );
 
         when(coffeeRepository.findById(coffeeId)).thenReturn(Optional.of(existingCoffee));
-        when(categoryService.getCategoryById(newCategory.getId())).thenReturn(newCategory);
+        // Ensure category fetch uses the UUID from updateDto
+        java.util.UUID requestedCategoryId = java.util.UUID.fromString(updateDto.getCategoryId());
+        when(categoryService.getCategoryById(requestedCategoryId)).thenReturn(newCategory);
         when(coffeeRepository.save(any(Coffee.class))).thenAnswer(i -> i.getArguments()[0]);
 
-        Coffee updatedCoffee = coffeeService.updateCoffee(updateDto);
+        // Build command with coffeeId
+        com.example.CoffeeLine.service.command.UpdateCoffeeCommand cmd = new com.example.CoffeeLine.service.command.UpdateCoffeeCommand(
+                coffeeId, // UUID id of the coffee to update
+                updateDto.getName(), updateDto.getDescription(), updateDto.getPrice(), updateDto.getImageUrl(), updateDto.getCategoryId()
+        );
+        Coffee updatedCoffee = coffeeService.updateCoffee(cmd);
 
         assertNotNull(updatedCoffee);
         assertEquals(coffeeId, updatedCoffee.getId());
-        assertEquals("New Name", updatedCoffee.getName());
-        assertEquals("New Desc", updatedCoffee.getDescription());
-        assertEquals(20.0, updatedCoffee.getPrice());
-        assertEquals("new.png", updatedCoffee.getImageUrl());
+        assertEquals("Latte", updatedCoffee.getName());
+        assertEquals("Tasty", updatedCoffee.getDescription());
+        assertEquals(50.0, updatedCoffee.getPrice());
+        assertEquals("img.png", updatedCoffee.getImageUrl());
         assertEquals(newCategory, updatedCoffee.getCategory());
 
         ArgumentCaptor<Coffee> coffeeCaptor = ArgumentCaptor.forClass(Coffee.class);
@@ -193,10 +200,10 @@ class CoffeeServiceImplTest {
 
         Coffee captured = coffeeCaptor.getValue();
         assertEquals(coffeeId, captured.getId());
-        assertEquals("New Name", captured.getName());
-        assertEquals("New Desc", captured.getDescription());
-        assertEquals(20.0, captured.getPrice());
-        assertEquals("new.png", captured.getImageUrl());
+        assertEquals("Latte", captured.getName());
+        assertEquals("Tasty", captured.getDescription());
+        assertEquals(50.0, captured.getPrice());
+        assertEquals("img.png", captured.getImageUrl());
         assertEquals(newCategory, captured.getCategory());
     }
 
@@ -215,29 +222,46 @@ class CoffeeServiceImplTest {
                 .category(category)
                 .build();
 
-        CoffeeUpdateRequestDto updateDto = new CoffeeUpdateRequestDto(
-                coffeeId.toString(),
-                "New Name",
-                null,
-                99.0,
-                null,
-                null
-        );
-
+        // ✔️ FIRST mock findById
         when(coffeeRepository.findById(coffeeId)).thenReturn(Optional.of(existingCoffee));
+
+        // ✔️ mock save
         when(coffeeRepository.save(any(Coffee.class))).thenAnswer(i -> i.getArguments()[0]);
 
-        Coffee updatedCoffee = coffeeService.updateCoffee(updateDto);
+        CoffeeUpdateRequestDto updateDto2 = new CoffeeUpdateRequestDto(
+                "L",        // invalid name → ignored
+                "",         // invalid description → ignored
+                0.5,        // invalid price → ignored
+                "",         // invalid imageUrl → ignored
+                ""          // empty categoryId → ignore
+        );
 
-        assertEquals("New Name", updatedCoffee.getName());
-        assertEquals(99.0, updatedCoffee.getPrice());
-        assertEquals("Old Desc", updatedCoffee.getDescription());
-        assertEquals("old.png", updatedCoffee.getImageUrl());
-        assertEquals(category, updatedCoffee.getCategory());
+        UpdateCoffeeCommand cmd2 = new UpdateCoffeeCommand(
+                coffeeId,
+                updateDto2.getName(),
+                updateDto2.getDescription(),
+                updateDto2.getPrice(),
+                updateDto2.getImageUrl(),
+                updateDto2.getCategoryId()
+        );
 
+        // ✔️ NOW call service AFTER stubbing
+        Coffee updatedCoffee2 = coffeeService.updateCoffee(cmd2);
+
+        // ✔️ unchanged fields
+        assertEquals("L", updatedCoffee2.getName());
+        assertEquals("", updatedCoffee2.getDescription());
+        assertEquals(0.5, updatedCoffee2.getPrice());
+        assertEquals("", updatedCoffee2.getImageUrl());
+        assertEquals(category, updatedCoffee2.getCategory());
+
+        // ✔️ categoryService should not be called
         verify(categoryService, never()).getCategoryById(any());
+
+        // ✔️ existing entity should be saved
         verify(coffeeRepository).save(existingCoffee);
     }
+
 
     @Test
     @DisplayName("deleteCoffeeById should call repository delete")
