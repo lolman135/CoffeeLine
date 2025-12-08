@@ -2,6 +2,8 @@ plugins {
 	id 'java'
 	id 'org.springframework.boot' version '3.5.7'
 	id 'io.spring.dependency-management' version '1.1.7'
+	id 'jacoco'
+	id 'idea'
 }
 
 group = 'com.example'
@@ -28,21 +30,90 @@ repositories {
 dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
 	implementation 'org.springframework.boot:spring-boot-starter-web'
-    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.13'
-    implementation 'org.springframework.boot:spring-boot-starter-validation:3.5.6'
-    implementation 'org.mapstruct:mapstruct:1.6.3'
-    implementation 'org.springframework.boot:spring-boot-starter-security:3.5.6'
-    implementation "io.jsonwebtoken:jjwt-api:${jjwtVersion}"
+	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.13'
+	implementation 'org.springframework.boot:spring-boot-starter-validation:3.5.6'
+	implementation 'org.mapstruct:mapstruct:1.6.3'
+	implementation 'org.springframework.boot:spring-boot-starter-security:3.5.6'
+	implementation "io.jsonwebtoken:jjwt-api:${jjwtVersion}"
 	compileOnly 'org.projectlombok:lombok'
 	runtimeOnly 'org.postgresql:postgresql'
-    runtimeOnly "io.jsonwebtoken:jjwt-impl:${jjwtVersion}"
-    runtimeOnly "io.jsonwebtoken:jjwt-jackson:${jjwtVersion}"
+	runtimeOnly "io.jsonwebtoken:jjwt-impl:${jjwtVersion}"
+	runtimeOnly "io.jsonwebtoken:jjwt-jackson:${jjwtVersion}"
 	annotationProcessor 'org.projectlombok:lombok'
-    annotationProcessor 'org.mapstruct:mapstruct-processor:1.6.3'
+	annotationProcessor 'org.mapstruct:mapstruct-processor:1.6.3'
+
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+	testImplementation 'org.springframework.security:spring-security-test'
+	testImplementation "org.testcontainers:junit-jupiter:1.19.7"
+	testImplementation "org.testcontainers:postgresql:1.19.7"
+}
+
+sourceSets {
+	integration {
+		java {
+			srcDir 'src/integration/java'
+		}
+		resources {
+			srcDir 'src/integration/resources'
+		}
+		compileClasspath += sourceSets.main.output + sourceSets.test.output
+		runtimeClasspath += sourceSets.main.output + sourceSets.test.output
+	}
+}
+
+configurations {
+	integrationImplementation.extendsFrom testImplementation
+	integrationRuntimeOnly.extendsFrom testRuntimeOnly
+	integrationAnnotationProcessor.extendsFrom annotationProcessor
+}
+
+tasks.register('integrationTest', Test) {
+	description = 'Runs integration tests.'
+	group = 'verification'
+
+	testClassesDirs = sourceSets.integration.output.classesDirs
+	classpath = sourceSets.integration.runtimeClasspath
+
+	useJUnitPlatform()
+
+	testLogging {
+		events "passed", "skipped", "failed"
+	}
+
+	finalizedBy jacocoTestReport
 }
 
 tasks.named('test') {
 	useJUnitPlatform()
+	finalizedBy jacocoTestReport
+}
+
+check.dependsOn integrationTest
+
+idea {
+	module {
+		testSourceDirs += file('src/integration/java')
+		testResourceDirs += file('src/integration/resources')
+	}
+}
+
+jacocoTestReport {
+	reports {
+		xml.required = true
+		html.required = true
+	}
+
+	executionData tasks.test, tasks.integrationTest
+}
+
+jacocoTestCoverageVerification {
+	dependsOn test
+	violationRules {
+		rule {
+			limit {
+				minimum = 0.8
+			}
+		}
+	}
 }

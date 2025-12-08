@@ -1,6 +1,7 @@
 package com.example.CoffeeLine.dto.order;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -20,5 +21,6 @@ public class OrderRequestDto {
     @Schema(description = "Set of order items")
     @NotNull(message = "cant be missing")
     @Size(min = 1, message = "must be at least 1 order item")
+    @Valid
     Set<OrderItemRequestDto> orderItems;
 }
