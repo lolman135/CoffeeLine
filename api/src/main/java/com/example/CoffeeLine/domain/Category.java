@@ -1,6 +1,7 @@
 package com.example.CoffeeLine.domain;
 
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
 import lombok.Data;
 
 import java.util.ArrayList;

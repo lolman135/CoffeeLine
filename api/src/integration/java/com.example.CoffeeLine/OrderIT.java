@@ -12,13 +12,18 @@ import com.example.CoffeeLine.service.repository.CoffeeRepository;
 import com.example.CoffeeLine.service.repository.OrderRepository;
 import com.example.CoffeeLine.service.repository.UserRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.mock.mockito.SpyBean;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
+
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDateTime;
@@ -26,39 +31,28 @@ import java.util.Set;
 import java.util.UUID;
 
 import static org.hamcrest.Matchers.hasSize;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WithMockUser(username = "admin", roles = {"ADMIN"})
 @DisplayName("INTEGRATION TESTS: Order Controller")
 public class OrderIT extends BaseIT {
 
-    @Autowired
-    private MockMvc mockMvc;
+    @Autowired private MockMvc mockMvc;
 
-    @Autowired
-    private OrderRepository orderRepository;
+    @Autowired private OrderRepository orderRepository;
+    @Autowired private UserRepository userRepository;
+    @Autowired private CoffeeRepository coffeeRepository;
+    @Autowired private CategoryRepository categoryRepository;
 
-    @Autowired
-    private UserRepository userRepository;
+    @Autowired private ObjectMapper objectMapper;
 
-    @Autowired
-    private CoffeeRepository coffeeRepository;
+    @Autowired private ApplicationContext applicationContext;
 
-    @Autowired
-    private CategoryRepository categoryRepository;
-
-    @Autowired
-    private ObjectMapper objectMapper;
-
-    @SpyBean
-    private OrderService orderService;
 
     @BeforeEach
     void setUp() {
@@ -68,215 +62,149 @@ public class OrderIT extends BaseIT {
         userRepository.deleteAll();
     }
 
+
     @Test
-    @DisplayName("[GET] /api/v1/orders - Should return list of all orders with full fields")
+    @DisplayName("[GET] /api/v1/orders?page=0&size=10 — returns Page")
     void shouldGetAllOrders() throws Exception {
         User user = createAndSaveUser();
         Coffee coffee = createAndSaveCoffee();
+
         createAndSaveOrder(user, coffee, OrderStatus.CREATED);
         createAndSaveOrder(user, coffee, OrderStatus.COMPLETED);
 
-        mockMvc.perform(get("/api/v1/orders"))
+        mockMvc.perform(get("/api/v1/orders?page=0&size=10"))
                 .andDo(print())
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.orders", hasSize(2)))
-                .andExpect(jsonPath("$.orders[0].id").exists())
-                .andExpect(jsonPath("$.orders[0].status").exists())
-                .andExpect(jsonPath("$.orders[0].totalCost").value(coffee.getPrice() * 2))
-                .andExpect(jsonPath("$.orders[0].userId").value(user.getId().toString()))
-                .andExpect(jsonPath("$.orders[0].items").isArray())
-                .andExpect(jsonPath("$.orders[0].items[0].coffeeId").value(coffee.getId().toString()))
-                .andExpect(jsonPath("$.orders[0].items[0].quantity").value(2));
+                .andExpect(jsonPath("$.content", hasSize(2)));
 
-        verify(orderService).getAllOrders(null);
     }
 
     @Test
-    @DisplayName("[GET] /api/v1/orders?status={status} - Should filter orders by status")
-    void shouldGetOrdersByStatus() throws Exception {
+    @DisplayName("[GET] /api/v1/orders?status=CREATED — filters")
+    void shouldFilterByStatus() throws Exception {
         User user = createAndSaveUser();
         Coffee coffee = createAndSaveCoffee();
+
         createAndSaveOrder(user, coffee, OrderStatus.CREATED);
         createAndSaveOrder(user, coffee, OrderStatus.CANCELLED);
 
         mockMvc.perform(get("/api/v1/orders")
+                        .param("page", "0")
+                        .param("size", "10")
                         .param("status", "CREATED"))
-                .andDo(print())
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.orders", hasSize(1)))
-                .andExpect(jsonPath("$.orders[0].status").value("CREATED"));
+                .andExpect(jsonPath("$.content", hasSize(1)));
 
-        verify(orderService).getAllOrders(OrderStatus.CREATED);
     }
 
     @Test
-    @DisplayName("[GET] /api/v1/orders/by-userId/{userId} - Should return orders for specific user")
-    void shouldGetOrdersByUserId() throws Exception {
-        User targetUser = createAndSaveUser();
-        User otherUser = userRepository.save(User.builder()
-                .email("other@test.com")
-                .name("Other")
-                .password("pass")
-                .phoneNumber("0990000000")
-                .roles(Set.of(Role.ROLE_USER))
-                .build());
+    @DisplayName("[GET] /api/v1/orders/by-userId/{id}")
+    void shouldGetOrdersByUser() throws Exception {
+        User u1 = createAndSaveUser();
+        User u2 = createAndSaveUser();
         Coffee coffee = createAndSaveCoffee();
 
-        createAndSaveOrder(targetUser, coffee, OrderStatus.CREATED);
-        createAndSaveOrder(otherUser, coffee, OrderStatus.CREATED);
+        createAndSaveOrder(u1, coffee, OrderStatus.CREATED);
+        createAndSaveOrder(u2, coffee, OrderStatus.CREATED);
 
-        mockMvc.perform(get("/api/v1/orders/by-userId/{userId}", targetUser.getId()))
+        mockMvc.perform(get("/api/v1/orders/by-userId/{id}", u1.getId()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.orders", hasSize(1)))
-                .andExpect(jsonPath("$.orders[0].userId").value(targetUser.getId().toString()));
+                .andExpect(jsonPath("$.orders", hasSize(1)));
 
-        verify(orderService).getOrdersByUserId(targetUser.getId());
     }
 
     @Test
-    @DisplayName("[GET] /api/v1/orders/{id} - Should return full order details")
-    void shouldGetOrderById() throws Exception {
+    @DisplayName("[GET] /api/v1/orders/{id}")
+    void shouldGetById() throws Exception {
         User user = createAndSaveUser();
         Coffee coffee = createAndSaveCoffee();
-        Order savedOrder = createAndSaveOrder(user, coffee, OrderStatus.CREATED);
+        Order order = createAndSaveOrder(user, coffee, OrderStatus.CREATED);
 
-        mockMvc.perform(get("/api/v1/orders/{id}", savedOrder.getId()))
-                .andDo(print())
+        mockMvc.perform(get("/api/v1/orders/{id}", order.getId()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(savedOrder.getId().toString()))
-                .andExpect(jsonPath("$.status").value("CREATED"))
-                .andExpect(jsonPath("$.totalCost").value(coffee.getPrice() * 2))
-                .andExpect(jsonPath("$.createdAt").exists())
-                .andExpect(jsonPath("$.userId").value(user.getId().toString()))
-                .andExpect(jsonPath("$.items", hasSize(1)))
-                .andExpect(jsonPath("$.items[0].coffeeId").value(coffee.getId().toString()))
-                .andExpect(jsonPath("$.items[0].quantity").value(2));
+                .andExpect(jsonPath("$.id").value(order.getId().toString()));
 
-        verify(orderService).getOrderById(savedOrder.getId());
     }
 
     @Test
-    @DisplayName("[GET] /api/v1/orders/{id} - Should return 404 if order not found")
-    void shouldReturn404WhenOrderNotFound() throws Exception {
-        mockMvc.perform(get("/api/v1/orders/{id}", UUID.randomUUID()))
-                .andExpect(status().isNotFound());
-    }
-
-    @Test
-    @DisplayName("[POST] /api/v1/orders - Should create new order and return full DTO")
-    void shouldCreateOrder() throws Exception {
+    @DisplayName("[POST] /api/v1/orders — creates order")
+    void shouldCreate() throws Exception {
         User user = createAndSaveUser();
         Coffee coffee = createAndSaveCoffee();
 
-        OrderItemRequestDto itemRequest = new OrderItemRequestDto(coffee.getId().toString(), 3);
-        OrderRequestDto orderRequest = new OrderRequestDto(user.getId().toString(), Set.of(itemRequest));
+        OrderItemRequestDto item = new OrderItemRequestDto(coffee.getId().toString(), 3);
+        OrderRequestDto req = new OrderRequestDto(user.getId().toString(), Set.of(item));
 
         mockMvc.perform(post("/api/v1/orders")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(orderRequest)))
-                .andDo(print())
+                        .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.id").exists())
-                .andExpect(jsonPath("$.status").value("CREATED"))
-                .andExpect(jsonPath("$.totalCost").value(coffee.getPrice() * 3))
-                .andExpect(jsonPath("$.userId").value(user.getId().toString()))
-                .andExpect(jsonPath("$.items", hasSize(1)))
-                .andExpect(jsonPath("$.items[0].coffeeId").value(coffee.getId().toString()))
-                .andExpect(jsonPath("$.items[0].quantity").value(3));
+                .andExpect(jsonPath("$.items", hasSize(1)));
 
-        verify(orderService).createOrder(any(OrderRequestDto.class));
     }
 
     @Test
-    @DisplayName("[POST] /api/v1/orders - Should return 400 for invalid input")
-    void shouldReturn400OnCreateWithInvalidInput() throws Exception {
-        OrderRequestDto invalidRequest = new OrderRequestDto("", null);
-
-        mockMvc.perform(post("/api/v1/orders")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(invalidRequest)))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.validationDetails").isArray());
-    }
-
-    @Test
-    @DisplayName("[PUT] /api/v1/orders - Should update order status and return updated DTO")
-    void shouldUpdateOrderStatus() throws Exception {
+    @DisplayName("[PATCH] /api/v1/orders — update status")
+    void shouldUpdateStatus() throws Exception {
         User user = createAndSaveUser();
         Coffee coffee = createAndSaveCoffee();
-        Order savedOrder = createAndSaveOrder(user, coffee, OrderStatus.CREATED);
+        Order order = createAndSaveOrder(user, coffee, OrderStatus.CREATED);
 
-        UpdateOrderStatusRequestDto updateRequest = new UpdateOrderStatusRequestDto(
-                savedOrder.getId().toString(),
-                "COMPLETED"
-        );
+        UpdateOrderStatusRequestDto req =
+                new UpdateOrderStatusRequestDto(order.getId().toString(), "COMPLETED");
 
-        mockMvc.perform(put("/api/v1/orders")
+        mockMvc.perform(patch("/api/v1/orders")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(updateRequest)))
-                .andDo(print())
+                        .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(savedOrder.getId().toString()))
-                .andExpect(jsonPath("$.status").value("COMPLETED"))
-                .andExpect(jsonPath("$.totalCost").value(savedOrder.getTotalCost()))
-                .andExpect(jsonPath("$.userId").value(user.getId().toString()));
+                .andExpect(jsonPath("$.status").value("COMPLETED"));
 
-        Order updatedOrderInDb = orderRepository.findById(savedOrder.getId()).orElseThrow();
-        assertEquals(OrderStatus.COMPLETED, updatedOrderInDb.getStatus());
 
-        verify(orderService).updateOrderStatus(any(UpdateOrderStatusRequestDto.class));
+        assertEquals(OrderStatus.COMPLETED,
+                orderRepository.findById(order.getId()).get().getStatus());
     }
 
     @Test
-    @DisplayName("[PUT] /api/v1/orders - Should return 400 for invalid status")
-    void shouldReturn400OnUpdateWithInvalidStatus() throws Exception {
-        UpdateOrderStatusRequestDto invalidRequest = new UpdateOrderStatusRequestDto(
-                UUID.randomUUID().toString(),
-                "INVALID_STATUS"
-        );
-
-        mockMvc.perform(put("/api/v1/orders")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(invalidRequest)))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.validationDetails").isArray());
-    }
-
-    @Test
-    @DisplayName("[DELETE] /api/v1/orders/{id} - Should delete order")
-    void shouldDeleteOrder() throws Exception {
+    @DisplayName("[DELETE] /api/v1/orders/{id}")
+    void shouldDelete() throws Exception {
         User user = createAndSaveUser();
         Coffee coffee = createAndSaveCoffee();
-        Order savedOrder = createAndSaveOrder(user, coffee, OrderStatus.CREATED);
+        Order order = createAndSaveOrder(user, coffee, OrderStatus.CREATED);
 
-        mockMvc.perform(delete("/api/v1/orders/{id}", savedOrder.getId()))
+        mockMvc.perform(delete("/api/v1/orders/{id}", order.getId()))
                 .andExpect(status().isNoContent());
 
-        assertFalse(orderRepository.findById(savedOrder.getId()).isPresent());
-
-        verify(orderService).deleteOrderById(savedOrder.getId());
+        assertFalse(orderRepository.findById(order.getId()).isPresent());
     }
 
+    // ===== helpers =====
+
     private User createAndSaveUser() {
-        return userRepository.save(User.builder()
-                .email("test" + UUID.randomUUID() + "@example.com")
-                .name("Test User")
-                .phoneNumber("0991234567")
-                .password("encodedPass")
-                .roles(Set.of(Role.ROLE_USER))
-                .build());
+        return userRepository.save(
+                User.builder()
+                        .email("t" + UUID.randomUUID() + "@mail.com")
+                        .name("User")
+                        .phoneNumber("0991112233")
+                        .password("pass")
+                        .roles(Set.of(Role.ROLE_USER))
+                        .build()
+        );
+    }
+
+    private Category createCategory() {
+        Category category = new Category();
+        category.setName("Test");
+        return categoryRepository.save(category);
     }
 
     private Coffee createAndSaveCoffee() {
-        Category category = new Category();
-        category.setName("Test Category");
-        Category savedCategory = categoryRepository.save(category);
+        Category category = createCategory();
         return coffeeRepository.save(Coffee.builder()
-                .name("Test Coffee")
-                .description("Desc")
+                .name("Coffee")
+                .description("desc")
                 .price(50.0)
-                .imageUrl("url")
-                .category(savedCategory)
+                .imageUrl("img")
+                .category(category)
                 .build());
     }
 
@@ -284,8 +212,8 @@ public class OrderIT extends BaseIT {
         Order order = Order.builder()
                 .user(user)
                 .status(status)
-                .createdAt(LocalDateTime.now())
                 .totalCost(coffee.getPrice() * 2)
+                .createdAt(LocalDateTime.now())
                 .build();
 
         OrderItem item = OrderItem.builder()

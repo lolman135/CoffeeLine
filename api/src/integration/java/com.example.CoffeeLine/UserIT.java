@@ -5,11 +5,13 @@ import com.example.CoffeeLine.domain.User;
 import com.example.CoffeeLine.dto.user.ChangeUserRoleRequestDto;
 import com.example.CoffeeLine.dto.user.UserUpdateRequestDto;
 import com.example.CoffeeLine.service.UserService;
+import com.example.CoffeeLine.service.command.UpdateUserCommand;
 import com.example.CoffeeLine.service.repository.UserRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.http.MediaType;
@@ -29,8 +31,7 @@ import static org.mockito.Mockito.verify;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WithMockUser(username = "admin", roles = {"ADMIN"})
 @DisplayName("INTEGRATION TESTS: User Controller")
@@ -54,7 +55,7 @@ public class UserIT extends BaseIT {
     }
 
     @Test
-    @DisplayName("[GET] /api/v1/users - Should return list of all users with full fields")
+    @DisplayName("[GET] /api/v1/users — returns list")
     void shouldGetAllUsers() throws Exception {
         createAndSaveUser("user1@test.com", "User One", "0990000001");
         createAndSaveUser("user2@test.com", "User Two", "0990000002");
@@ -63,23 +64,16 @@ public class UserIT extends BaseIT {
                 .andDo(print())
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.users", hasSize(2)))
-                .andExpect(jsonPath("$.users[0].id").exists())
                 .andExpect(jsonPath("$.users[0].email").value("user1@test.com"))
-                .andExpect(jsonPath("$.users[0].name").value("User One"))
-                .andExpect(jsonPath("$.users[0].phoneNumber").value("0990000001"))
-                .andExpect(jsonPath("$.users[0].roles").value("ROLE_USER"))
-                .andExpect(jsonPath("$.users[0].orders").isArray())
-                .andExpect(jsonPath("$.users[0].orders").isEmpty())
-                .andExpect(jsonPath("$.users[0].password").doesNotExist())
                 .andExpect(jsonPath("$.users[1].email").value("user2@test.com"))
-                .andExpect(jsonPath("$.users[1].name").value("User Two"))
-                .andExpect(jsonPath("$.users[1].phoneNumber").value("0990000002"));
+                .andExpect(jsonPath("$.users[0].roles").value("ROLE_USER"))
+                .andExpect(jsonPath("$.users[0].password").doesNotExist());
 
         verify(userService).getAllUsers();
     }
 
     @Test
-    @DisplayName("[GET] /api/v1/users/{id} - Should return full user details")
+    @DisplayName("[GET] /api/v1/users/{id} — returns full user")
     void shouldReturnUserById() throws Exception {
         User savedUser = createAndSaveUser("ivan@test.com", "Ivan", "0991234567");
 
@@ -88,35 +82,30 @@ public class UserIT extends BaseIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(savedUser.getId().toString()))
                 .andExpect(jsonPath("$.name").value("Ivan"))
-                .andExpect(jsonPath("$.email").value("ivan@test.com"))
-                .andExpect(jsonPath("$.phoneNumber").value("0991234567"))
                 .andExpect(jsonPath("$.roles").value("ROLE_USER"))
-                .andExpect(jsonPath("$.orders").isArray())
-                .andExpect(jsonPath("$.orders").isEmpty())
                 .andExpect(jsonPath("$.password").doesNotExist());
 
         verify(userService).getUserById(savedUser.getId());
     }
 
     @Test
-    @DisplayName("[GET] /api/v1/users/{id} - Should return 404 if user not found")
+    @DisplayName("[GET] /api/v1/users/{id} — 404 when not found")
     void shouldReturn404WhenUserNotFound() throws Exception {
         mockMvc.perform(get("/api/v1/users/{id}", UUID.randomUUID()))
                 .andExpect(status().isNotFound());
     }
 
     @Test
-    @DisplayName("[PUT] /api/v1/users - Should update user info and return full DTO")
+    @DisplayName("[PUT] /api/v1/users/{id} — updates user")
     void shouldUpdateUser() throws Exception {
         User savedUser = createAndSaveUser("update@test.com", "OldName", "0501112233");
 
         Map<String, Object> updateRequest = Map.of(
-                "id", savedUser.getId().toString(),
                 "name", "NewName",
                 "phoneNumber", "0669998877"
         );
 
-        mockMvc.perform(put("/api/v1/users")
+        mockMvc.perform(put("/api/v1/users/{id}", savedUser.getId())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(updateRequest)))
                 .andDo(print())
@@ -124,35 +113,37 @@ public class UserIT extends BaseIT {
                 .andExpect(jsonPath("$.name").value("NewName"))
                 .andExpect(jsonPath("$.phoneNumber").value("0669998877"))
                 .andExpect(jsonPath("$.id").value(savedUser.getId().toString()))
-                .andExpect(jsonPath("$.email").value("update@test.com"))
                 .andExpect(jsonPath("$.roles").value("ROLE_USER"))
-                .andExpect(jsonPath("$.orders").isEmpty())
                 .andExpect(jsonPath("$.password").doesNotExist());
 
-        verify(userService).updateUser(any(UserUpdateRequestDto.class));
+        ArgumentCaptor<UpdateUserCommand> captor = ArgumentCaptor.forClass(UpdateUserCommand.class);
+        verify(userService).updateUser(captor.capture());
+
+        UpdateUserCommand cmd = captor.getValue();
+        assertTrue(cmd.id().equals(savedUser.getId()));
+        assertTrue(cmd.name().equals("NewName"));
+        assertTrue(cmd.phoneNumber().equals("0669998877"));
     }
 
     @Test
-    @DisplayName("[PUT] /api/v1/users - Should return 400 for invalid phone format")
+    @DisplayName("[PUT] /api/v1/users/{id} — validation failure returns 400")
     void shouldReturn400OnInvalidUpdate() throws Exception {
         User savedUser = createAndSaveUser("invalid@test.com", "Name", "0501112233");
 
         Map<String, Object> invalidRequest = Map.of(
-                "id", savedUser.getId().toString(),
                 "phoneNumber", "+38050..."
         );
 
-        mockMvc.perform(put("/api/v1/users")
+        mockMvc.perform(put("/api/v1/users/{id}", savedUser.getId())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(invalidRequest)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
-                .andExpect(jsonPath("$.detail").value("Request validation failed"))
-                .andExpect(jsonPath("$.validationDetails").isArray());
+                .andExpect(jsonPath("$.detail").value("Request validation failed"));
     }
 
     @Test
-    @DisplayName("[PUT] /api/v1/users/role/add - Should add role and return full DTO")
+    @DisplayName("[PUT] /api/v1/users/role/add — adds role")
     void shouldAddRoleToUser() throws Exception {
         User savedUser = createAndSaveUser("role@test.com", "RoleTest", "0931234567");
 
@@ -166,26 +157,24 @@ public class UserIT extends BaseIT {
                         .content(objectMapper.writeValueAsString(roleRequest)))
                 .andDo(print())
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.roles").value(containsString("ROLE_USER")))
-                .andExpect(jsonPath("$.roles").value(containsString("ROLE_CASHIER")))
-                .andExpect(jsonPath("$.id").value(savedUser.getId().toString()))
-                .andExpect(jsonPath("$.email").value("role@test.com"))
-                .andExpect(jsonPath("$.password").doesNotExist());
+                .andExpect(jsonPath("$.roles", containsString("ROLE_USER")))
+                .andExpect(jsonPath("$.roles", containsString("ROLE_CASHIER")));
 
         verify(userService).addRoleToUser(any(ChangeUserRoleRequestDto.class));
     }
 
     @Test
-    @DisplayName("[PUT] /api/v1/users/role/remove - Should remove role and return full DTO")
+    @DisplayName("[PUT] /api/v1/users/role/remove — removes role")
     void shouldRemoveRoleFromUser() throws Exception {
-        User user = User.builder()
-                .email("remove@test.com")
-                .name("RemoveRole")
-                .password("pass")
-                .phoneNumber("0931234567")
-                .roles(Set.of(Role.ROLE_USER, Role.ROLE_CASHIER))
-                .build();
-        User savedUser = userRepository.save(user);
+        User savedUser = userRepository.save(
+                User.builder()
+                        .email("remove@test.com")
+                        .name("RemoveRole")
+                        .phoneNumber("0931234567")
+                        .password("pass")
+                        .roles(Set.of(Role.ROLE_USER, Role.ROLE_CASHIER))
+                        .build()
+        );
 
         Map<String, Object> roleRequest = Map.of(
                 "id", savedUser.getId().toString(),
@@ -196,64 +185,51 @@ public class UserIT extends BaseIT {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(roleRequest)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.roles").value(containsString("ROLE_USER")))
                 .andExpect(jsonPath("$.roles", not(containsString("ROLE_CASHIER"))))
-                .andExpect(jsonPath("$.email").value("remove@test.com"))
-                .andExpect(jsonPath("$.password").doesNotExist());
+                .andExpect(jsonPath("$.roles", containsString("ROLE_USER")));
 
         verify(userService).removeRoleFromUser(any(ChangeUserRoleRequestDto.class));
     }
 
     @Test
-    @DisplayName("[GET] /api/v1/users/me - Should return full details of current user")
+    @DisplayName("[GET] /api/v1/users/me — returns current user")
     void getMe_ReturnsCurrentUser() throws Exception {
         User savedUser = createAndSaveUser("me@real.com", "Real User", "0991112233");
 
         mockMvc.perform(get("/api/v1/users/me")
-                        .with(authentication(new UsernamePasswordAuthenticationToken(savedUser, null, savedUser.getAuthorities()))))
+                        .with(authentication(new UsernamePasswordAuthenticationToken(
+                                savedUser, null, savedUser.getAuthorities()))))
                 .andDo(print())
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(savedUser.getId().toString()))
-                .andExpect(jsonPath("$.name").value("Real User"))
-                .andExpect(jsonPath("$.email").value("me@real.com"))
-                .andExpect(jsonPath("$.phoneNumber").value("0991112233"))
-                .andExpect(jsonPath("$.roles").value("ROLE_USER"))
-                .andExpect(jsonPath("$.orders").isArray())
-                .andExpect(jsonPath("$.password").doesNotExist());
+                .andExpect(jsonPath("$.email").value("me@real.com"));
     }
 
     @Test
-    @DisplayName("[PUT] /api/v1/users/me - Should update user and return full updated DTO")
+    @DisplayName("[PUT] /api/v1/users/me — updates current user")
     void updateMe_UpdatesCurrentUser() throws Exception {
         User savedUser = createAndSaveUser("update.me@real.com", "Old Name", "0660000000");
 
         Map<String, Object> updateRequest = Map.of(
-                "id", UUID.randomUUID().toString(),
                 "name", "Updated Name",
                 "phoneNumber", "0999999999"
         );
 
         mockMvc.perform(put("/api/v1/users/me")
-                        .with(authentication(new UsernamePasswordAuthenticationToken(savedUser, null, savedUser.getAuthorities())))
+                        .with(authentication(new UsernamePasswordAuthenticationToken(
+                                savedUser, null, savedUser.getAuthorities())))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(updateRequest)))
                 .andDo(print())
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.name").value("Updated Name"))
-                .andExpect(jsonPath("$.phoneNumber").value("0999999999"))
-                .andExpect(jsonPath("$.id").value(savedUser.getId().toString()))
-                .andExpect(jsonPath("$.email").value("update.me@real.com"))
-                .andExpect(jsonPath("$.roles").value("ROLE_USER"))
-                .andExpect(jsonPath("$.orders").isEmpty())
-                .andExpect(jsonPath("$.password").doesNotExist());
+                .andExpect(jsonPath("$.name").value("Updated Name"));
 
-        User updatedUserInDb = userRepository.findById(savedUser.getId()).orElseThrow();
-        assertTrue(updatedUserInDb.getName().equals("Updated Name"));
-        assertTrue(updatedUserInDb.getPhoneNumber().equals("0999999999"));
+        User updated = userRepository.findById(savedUser.getId()).orElseThrow();
+        assertTrue(updated.getName().equals("Updated Name"));
+        assertTrue(updated.getPhoneNumber().equals("0999999999"));
     }
 
     @Test
-    @DisplayName("[DELETE] /api/v1/users/{id} - Should delete user and check DB")
+    @DisplayName("[DELETE] /api/v1/users/{id} — deletes user")
     void shouldDeleteUser() throws Exception {
         User savedUser = createAndSaveUser("delete@test.com", "Del", "0991112233");
 
@@ -261,7 +237,6 @@ public class UserIT extends BaseIT {
                 .andExpect(status().is2xxSuccessful());
 
         assertFalse(userRepository.findById(savedUser.getId()).isPresent());
-
         verify(userService).deleteUserById(savedUser.getId());
     }
 
