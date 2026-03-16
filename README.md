@@ -2,132 +2,91 @@
 
 ## Backend
 
-### Можливості
-- **Автентифікація:** Реєстрація (`Sign Up`) та вхід (`Sign In`) за допомогою JWT.
-- **Авторизація:** API захищено за допомогою Spring Security з різними ролями (`USER`, `CASHIER`, `ADMIN`).
-- **Управління Категоріями:** Повний CRUD для категорій кави (тільки для `ADMIN`).
-- **Управління Кавою:** Повний CRUD для кавових продуктів (тільки для `ADMIN`).
-- **Управління Замовленнями:** Створення замовлень, перегляд замовлень за статусом або користувачем, зміна статусу замовлень.
-- **Управління Користувачами:** Перегляд та керування ролями користувачів (тільки для `ADMIN`).
+### ✨ Features
+- **Authentication:** Sign Up and Sign In using JWT.
+- **Authorization:** API is protected by Spring Security with different roles (`USER`, `CASHIER`, `ADMIN`).
+- **Category Management:** Full CRUD for coffee categories (`ADMIN` only).
+- **Coffee Management:** Full CRUD for coffee products (`ADMIN` only).
+- **Order Management:** Create orders, view orders by status or user, change order status.
+- **User Management:** View and manage user roles (`ADMIN` only).
 
-### Структура Проєкту
-```
-src/
-├── main/
-│   ├── java/com/example/CoffeeLine/
-│   │   ├── common/             # Спільні класи, enum-и, константи
-│   │   ├── config/             # Конфігурації Spring (бінів, безпеки, CORS тощо)
-│   │   ├── domain/             # JPA сутності, що представляють таблиці в базі даних
-│   │   ├── dto/                # DTO-класи для запитів та відповідей API
-│   │   ├── security/           # JWT, UserDetailsService, фільтри, Auth механіка
-│   │   ├── service/            # Сервіси та бізнес-логіка
-│   │   ├── util/               # Утилітарні класи (хелпери, валідатори)
-│   │   └── web/                # REST-контролери, маппери, ендпоінти
-│   │
-│   └── resources/              # application.yaml, Liquibase, SQL, статичні файли
-│
-├── test/
-│   └── java/com/example/CoffeeLine/
-│       ├── dto/                # Unit-тести DTO (якщо потрібні)
-│       ├── security/           # Тести безпеки, JWT, фільтрів
-│       ├── service/            # Unit-тести сервісів з @MockitoBean / моками
-│       └── web/                # Unit-тести контролерів через MockMvc
-│       └── CoffeeLineApplicationTests # Smoke-тест на підняття контексту
-│
-└── integration/
-    └── java/com/example/CoffeeLine/
-        ├── AuthenticationIT/   # Інтеграційні тести аутентифікації
-        ├── BaseIT/             # Базовий клас для всіх інтеграційних тестів (Testcontainers)
-        ├── CategoryIT/         # Перевірка CRUD категорій
-        ├── CoffeeIT/           # Тести Coffee сервісу / API
-        ├── CoffeeLineApplicationTests # Інтеграційний запуск контексту
-        ├── OrderIT/            # Інтеграційні тести замовлень
-        ├── SecurityIT/         # Інтеграційні тести безпеки
-        └── UserIT/             # Інтеграційні тести користувачів
-```
-
-## 🛠️ Технологічний стек
-- **Версія Java:** 21
-- **Фреймворк:** Spring Boot
-- **Архітектура:** Багатошарова
-- **Безпека:** Spring Security (з автентифікацією JWT)
-- **Управління даними:** Spring Data JPA
-- **База даних:** PostgreSQL
-- **Документація:** Springdoc OpenAPI 3 (Авто-генерація Swagger UI)
-- **Build-система:** Gradle
+### 🛠️ Technology stack
+- **Java version:** 21
+- **Framework:** Spring Boot
+- **Architecture:** Multi-layer
+- **Security:** Spring Security (with JWT authentication)
+- **Data management:** Spring Data JPA
+- **Database:** PostgreSQL
+- **Documentation:** Springdoc OpenAPI 3 (Auto-generation of Swagger UI)
+- **Build system:** Gradle
 
 ## Frontend
 
-## ✨ Основні функції
+### Interactive
+- You can see the full system workflow using an interactive model developed on Figma.
+- https://lung-chaos-53658667.figma.site/#/login
+- User
+  - Email: user@coffee.com
+  - Password: 1
+- Cashier
+  - Email: cashier@coffee.com
+  - Password: 1
+- Admin
+  - Email: admin@coffee.com
+  - Password 1
 
-- ✅ Авторизація/реєстрація з різними ролями
-- ✅ Каталог напоїв з фільтрацією по категоріях
-- ✅ Пошук в реальному часі
-- ✅ Картка товару з опціями (розмір, молоко, добавки)
-- ✅ Кошик з збереженням у localStorage
-- ✅ Оформлення замовлення
-- ✅ Відстеження статусу замовлення
-- ✅ Історія замовлень в профілі
-- ✅ Панель касира для обробки замовлень
-- ✅ Панель адміністратора зі статистикою
-- ✅ Повна адаптивність під різні роздільні здатності
+### ✨Features
 
-## 📱 Роздільна здатність
+- ✅ Authorization/registration with different roles
+- ✅ Beverage catalog with filtering by category
+- ✅ Real-time search
+- ✅ Product card with options (size, milk, additives)
+- ✅ Cart with saving in localStorage
+- ✅ Order placement
+- ✅ Order status tracking
+- ✅ Order history in profile
+- ✅ Cashier panel for processing orders
+- ✅ Admin panel with statistics
+- ✅ Full adaptability for different resolutions
 
-Дизайн оптимізований під **1920x1080**, але повністю адаптивний для всіх пристроїв.
-### Структура Проєкту
-```
-coffee-shop/
-├── src/
-│   └── main.tsx              # Точка входу
-├── components/               # React компоненти
-│   ├── Header.tsx
-│   ├── LoginPage.tsx
-│   ├── MainPage.tsx
-│   ├── CartPage.tsx
-│   ├── ProductDetailsPage.tsx
-│   ├── OrderPlacementPage.tsx
-│   ├── OrderStatusPage.tsx
-│   ├── ProfilePage.tsx
-│   ├── CashierPanel.tsx
-│   ├── AdminPanel.tsx
-│   └── ui/                   # UI компоненти
-├── contexts/                 # React Context
-│   ├── AuthContext.tsx
-│   ├── CartContext.tsx
-│   ├── DrinksContext.tsx
-│   └── OrdersContext.tsx
-├── data/
-│   └── drinks.ts             # Mock-дані напоїв
-├── imports/                  # Figma імпорти
-├── styles/
-│   └── globals.css           # Глобальні стилі (Tailwind)
-├── App.tsx                   # Головний компонент з роутингом
-├── package.json              # Залежності проекту
-├── vite.config.ts            # Конфігурація Vite
-├── tsconfig.json             # Конфігурація TypeScript
-└── index.html                # HTML шаблон
-```
+## 💻 Resolution
+Design optimized for **1920x1080**, but fully responsive for all devices.
 
-## 🛠️ Технології
+## 📸 Screenshots
+### Login/Register page
+![Знімок екрана 2026-03-16 о 16.25.00.png](docs/%D0%97%D0%BD%D1%96%D0%BC%D0%BE%D0%BA%20%D0%B5%D0%BA%D1%80%D0%B0%D0%BD%D0%B0%202026-03-16%20%D0%BE%2016.25.00.png)
+### Menu
+![Знімок екрана 2026-03-16 о 16.25.34.png](docs/%D0%97%D0%BD%D1%96%D0%BC%D0%BE%D0%BA%20%D0%B5%D0%BA%D1%80%D0%B0%D0%BD%D0%B0%202026-03-16%20%D0%BE%2016.25.34.png)
+### Profile
+![Знімок екрана 2026-03-16 о 16.26.46.png](docs/%D0%97%D0%BD%D1%96%D0%BC%D0%BE%D0%BA%20%D0%B5%D0%BA%D1%80%D0%B0%D0%BD%D0%B0%202026-03-16%20%D0%BE%2016.26.46.png)
+### Creating order
+![Знімок екрана 2026-03-16 о 16.28.05.png](docs/%D0%97%D0%BD%D1%96%D0%BC%D0%BE%D0%BA%20%D0%B5%D0%BA%D1%80%D0%B0%D0%BD%D0%B0%202026-03-16%20%D0%BE%2016.28.05.png)
+### Cashier panel
+![Знімок екрана 2026-03-16 о 16.28.33.png](docs/%D0%97%D0%BD%D1%96%D0%BC%D0%BE%D0%BA%20%D0%B5%D0%BA%D1%80%D0%B0%D0%BD%D0%B0%202026-03-16%20%D0%BE%2016.28.33.png)
+### Admin panel
+![Знімок екрана 2026-03-16 о 16.28.54.png](docs/%D0%97%D0%BD%D1%96%D0%BC%D0%BE%D0%BA%20%D0%B5%D0%BA%D1%80%D0%B0%D0%BD%D0%B0%202026-03-16%20%D0%BE%2016.28.54.png)
+### All orders table
+![Знімок екрана 2026-03-16 о 16.29.01.png](docs/%D0%97%D0%BD%D1%96%D0%BC%D0%BE%D0%BA%20%D0%B5%D0%BA%D1%80%D0%B0%D0%BD%D0%B0%202026-03-16%20%D0%BE%2016.29.01.png)
 
-- **React 18** - UI бібліотека
-- **TypeScript** - типізація
-- **Vite** - збірник та dev сервер
-- **React Router** - навігація
-- **Tailwind CSS v4** - стилізація
-- **Recharts** - графіки та діаграми
-- **Lucide React** - іконки
-- **Radix UI** - UI примітиви
-- **Context API** - управління станом
-- **localStorage** - збереження кошика
+## 🛠️ Technology stack
 
-## 📝 Примітки
+- **React 18** - UI library
+- **TypeScript** - typing
+- **Vite** - compilation and dev server
+- **React Router** - navigation
+- **Tailwind CSS v4** - styling
+- **Recharts** - charts and diagrams
+- **Lucide React** - icons
+- **Radix UI** - UI primitives
+- **Context API** - state management
+- **localStorage** - saving the cart
 
-- (Проект використовує **mock-дані** замість реального бекенду) Проект інтегровано з бекендом
-- (Всі дані зберігаються в пам'яті браузера (localStorage)) Тепер всі дані зберігаються у БД
-- (Авторизаційні дані hardcoded для демонстрації) Підключені реальний Authn та Authz
+## 📝 Notes
+
+- The project is integrated with the backend
+- All data is stored in the database
+- Real Authn and Authz are connected
 
 ---
 
-**Розроблено з ❤️ для Coffee Shop**
+**Developed with ❤️ for Coffee Shop**

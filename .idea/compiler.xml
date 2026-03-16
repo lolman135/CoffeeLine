@@ -8,8 +8,8 @@
           <entry name="$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.projectlombok/lombok/1.18.42/8365263844ebb62398e0dc33057ba10ba472d3b8/lombok-1.18.42.jar" />
           <entry name="$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.mapstruct/mapstruct-processor/1.6.3/52e345c907fbf173b376586c7f8b131d53fa5867/mapstruct-processor-1.6.3.jar" />
         </processorPath>
-        <module name="CoffeLine.api.integration" />
-        <module name="CoffeLine.api.main" />
+        <module name="com.example.CoffeeLine.integration" />
+        <module name="com.example.CoffeeLine.main" />
       </profile>
     </annotationProcessing>
   </component>
@@ -19,10 +19,17 @@
       <module name="CoffeLine.api.integration" options="-parameters" />
       <module name="CoffeLine.api.main" options="-parameters" />
       <module name="CoffeLine.api.test" options="-parameters" />
-      <module name="CoffeeLine" options="-parameters" />
+      <module name="CoffeeLine.api" options="-parameters" />
+      <module name="CoffeeLine.api.integration" options="-parameters" />
+      <module name="CoffeeLine.api.main" options="-parameters" />
+      <module name="CoffeeLine.api.test" options="-parameters" />
       <module name="CoffeeLine.integration" options="-parameters" />
       <module name="CoffeeLine.main" options="-parameters" />
       <module name="CoffeeLine.test" options="-parameters" />
+      <module name="com.example.CoffeeLine" options="-parameters" />
+      <module name="com.example.CoffeeLine.integration" options="-parameters" />
+      <module name="com.example.CoffeeLine.main" options="-parameters" />
+      <module name="com.example.CoffeeLine.test" options="-parameters" />
     </option>
   </component>
 </project>
